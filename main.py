@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import logging
-from tkinter import Tk, scrolledtext, Button, Label
+from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
 from claude_api import ClaudeAPI
 from repo_generator import RepoGenerator
 from config_manager import ConfigManager
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ClaudeRepoCreator:
     def __init__(self):
         self.config = self.load_config()
-        self.claude_api = ClaudeAPI(self.config['api_key'])
+        self.claude_api = None
         self.repo_generator = RepoGenerator()
         self.cache_manager = CacheManager()
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
@@ -26,10 +26,35 @@ class ClaudeRepoCreator:
         config_manager = ConfigManager()
         config = config_manager.load_config()
         if not config.get('api_key'):
-            raise ValueError("API key is not set in the configuration file.")
+            config['api_key'] = self.prompt_for_api_key()
+            config_manager.save_config(config)
         return config
 
+    def prompt_for_api_key(self):
+        root = Tk()
+        root.title("Enter API Key")
+        
+        api_key = StringVar()
+        
+        Label(root, text="Please enter your Claude API key:").pack(pady=10)
+        Entry(root, textvariable=api_key, show="*", width=50).pack(pady=5)
+        
+        def save_and_exit():
+            root.quit()
+        
+        Button(root, text="Save", command=save_and_exit).pack(pady=10)
+        
+        root.mainloop()
+        root.destroy()
+        
+        return api_key.get()
+
+    def initialize_claude_api(self):
+        if not self.claude_api:
+            self.claude_api = ClaudeAPI(self.config['api_key'])
+
     def generate_requirements(self, project_description):
+        self.initialize_claude_api()
         cache_key = f"requirements_{hash(project_description)}"
         cached_requirements = self.cache_manager.get(cache_key)
         if cached_requirements:
@@ -115,6 +140,7 @@ class ClaudeRepoCreator:
 
     def create_feature_files(self, feature, tech_stack):
         try:
+            self.initialize_claude_api()
             code_generator = CodeGenerator(self.claude_api, tech_stack)
             feature_code = code_generator.generate_feature_code(feature)
             

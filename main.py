@@ -31,6 +31,20 @@ class ClaudeRepoCreator:
         return config
 
     def prompt_for_api_key(self):
+        print("API key is not set. How would you like to enter it?")
+        print("1. GUI")
+        print("2. Console")
+        choice = input("Enter your choice (1 or 2): ")
+        
+        if choice == '1':
+            return self.prompt_gui_input()
+        elif choice == '2':
+            return self.prompt_console_input()
+        else:
+            print("Invalid choice. Defaulting to console input.")
+            return self.prompt_console_input()
+
+    def prompt_gui_input(self):
         root = Tk()
         root.title("Enter API Key")
         
@@ -48,6 +62,16 @@ class ClaudeRepoCreator:
         root.destroy()
         
         return api_key.get()
+
+    def prompt_console_input(self):
+        while True:
+            api_key = input("Please enter your Claude API key: ").strip()
+            if api_key:
+                confirm = input("Is this correct? (y/n): ").lower()
+                if confirm == 'y':
+                    return api_key
+            else:
+                print("API key cannot be empty. Please try again.")
 
     def initialize_claude_api(self):
         if not self.claude_api:

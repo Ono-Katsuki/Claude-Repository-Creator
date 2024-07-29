@@ -20,3 +20,7 @@ class ConfigManager:
         with open(self.config_file, 'w') as f:
             json.dump(default_config, f, indent=2)
         return default_config
+
+    def save_config(self, config):
+        with open(self.config_file, 'w') as f:
+            json.dump(config, f, indent=2)

@@ -7,8 +7,17 @@ logger = logging.getLogger(__name__)
 class CodeGenerator:
     def __init__(self, claude_api, tech_stack: List[str]):
         self.claude_api = claude_api
-        self.tech_stack = tech_stack
+        self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()
+
+    def _normalize_language(self, language: str) -> str:
+        """言語名を正規化します。"""
+        language = language.lower()
+        if language in ['react', 'react.js', 'reactjs']:
+            return 'react'
+        if language in ['react native', 'react-native', 'reactnative']:
+            return 'react native'
+        return language
 
     def load_templates(self) -> Dict[str, Dict[str, str]]:
         """各言語や設計パターンに応じたテンプレートをロードします。"""
@@ -50,7 +59,7 @@ class CodeGenerator:
         :param feature: 機能の詳細を含む辞書
         :return: 生成されたコード
         """
-        language = self.tech_stack[0].lower()  # 簡単のため、最初の技術を言語として使用
+        language = self._normalize_language(self.tech_stack[0])  # 最初の技術を言語として使用
         template = self.templates.get(language, {})
 
         if not template:
@@ -86,6 +95,7 @@ class CodeGenerator:
 
         生成されたコードは、{language}のベストプラクティスに従ってください。
         HTMLの場合は適切な構造を、CSSの場合は関連するスタイルを生成してください。
+        Reactの場合は、必要に応じてステート管理やライフサイクルメソッドを含めてください。
         """
 
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:
@@ -106,9 +116,25 @@ class CodeGenerator:
         :param language: 追加する言語の名前
         :param templates: 言語のテンプレート辞書
         """
-        self.templates[language.lower()] = templates
-        logger.info(f"新しい言語テンプレートが追加されました: {language}")
+        normalized_language = self._normalize_language(language)
+        self.templates[normalized_language] = templates
+        logger.info(f"新しい言語テンプレートが追加されました: {normalized_language}")
 
     def get_supported_languages(self) -> List[str]:
         """サポートされている言語のリストを返します。"""
         return list(self.templates.keys())
+
+    def get_file_extension(self, language: str) -> str:
+        """指定された言語に対応するファイル拡張子を返します。"""
+        extensions = {
+            'python': '.py',
+            'java': '.java',
+            'javascript': '.js',
+            'html': '.html',
+            'css': '.css',
+            'ruby': '.rb',
+            'react': '.jsx',
+            'react native': '.js',
+        }
+        normalized_language = self._normalize_language(language)
+        return extensions.get(normalized_language, '.txt')

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import logging
+import re
 from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
 import anthropic
 from claude_api import ClaudeAPI
@@ -16,12 +17,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class ClaudeRepoCreator:
-    def __init__(self):
+    def __init__(self, debug_mode=False):
         self.config = self.load_config()
         self.claude_client = None
         self.repo_generator = RepoGenerator()
         self.cache_manager = CacheManager()
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
+        self.debug_mode = debug_mode
+        if self.debug_mode:
+            logging.getLogger().setLevel(logging.DEBUG)
 
     def load_config(self):
         config_manager = ConfigManager()
@@ -86,40 +90,56 @@ class ClaudeRepoCreator:
             return cached_requirements
 
         prompt = self.create_requirements_prompt(project_description)
-        try:
-            message = self.claude_client.messages.create(
-                model="claude-3-5-sonnet-20240620",
-                max_tokens=1000,
-                temperature=0,
-                system="You are an AI assistant specialized in software development and repository creation. Provide detailed and structured responses.",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
-                    }
-                ]
-            )
-            response = message.content[0].text
-            logger.info(f"Received response from Claude API: {response[:100]}...")  # Log first 100 characters
-            requirements = json.loads(response)
-            self.validate_requirements(requirements)
-            self.cache_manager.set(cache_key, requirements)
-            return requirements
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Claude's response as JSON: {e}")
-            logger.error(f"Raw response: {response}")
-            raise ValueError("Invalid response format from Claude API.")
-        except KeyError as e:
-            logger.error(f"Missing required key in requirements: {str(e)}")
-            raise ValueError("Incomplete requirements generated.")
-        except Exception as e:
-            logger.error(f"Error generating requirements: {str(e)}")
-            raise
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                message = self.claude_client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=1000,
+                    temperature=0,
+                    system="You are an AI assistant specialized in software development and repository creation. Provide detailed and structured responses.",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ]
+                )
+                response = message.content[0].text
+                logger.debug(f"Full response from Claude API: {response}")
+                logger.info(f"Received response from Claude API: {response[:100]}...")  # Log first 100 characters
+                
+                # Extract JSON from the response
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group()
+                    requirements = json.loads(json_str)
+                    self.validate_requirements(requirements)
+                    self.cache_manager.set(cache_key, requirements)
+                    return requirements
+                else:
+                    raise ValueError("No JSON found in the response")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Claude's response as JSON: {e}")
+                logger.error(f"Raw response: {response}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                else:
+                    raise ValueError("Invalid response format from Claude API after multiple attempts.")
+            except KeyError as e:
+                logger.error(f"Missing required key in requirements: {str(e)}")
+                raise ValueError("Incomplete requirements generated.")
+            except Exception as e:
+                logger.error(f"Error generating requirements: {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                else:
+                    raise
 
     def create_requirements_prompt(self, project_description):
         return f"""
@@ -249,5 +269,6 @@ class ClaudeRepoCreator:
             sys.exit(1)
 
 if __name__ == "__main__":
-    creator = ClaudeRepoCreator()
+    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+    creator = ClaudeRepoCreator(debug_mode=debug_mode)
     creator.run()

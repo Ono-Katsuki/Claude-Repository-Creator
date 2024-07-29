@@ -3,6 +3,7 @@ import sys
 import json
 import logging
 from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
+import anthropic
 from claude_api import ClaudeAPI
 from repo_generator import RepoGenerator
 from config_manager import ConfigManager
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ClaudeRepoCreator:
     def __init__(self):
         self.config = self.load_config()
-        self.claude_api = None
+        self.claude_client = None
         self.repo_generator = RepoGenerator()
         self.cache_manager = CacheManager()
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
@@ -73,12 +74,12 @@ class ClaudeRepoCreator:
             else:
                 print("API key cannot be empty. Please try again.")
 
-    def initialize_claude_api(self):
-        if not self.claude_api:
-            self.claude_api = ClaudeAPI(self.config['api_key'])
+    def initialize_claude_client(self):
+        if not self.claude_client:
+            self.claude_client = anthropic.Anthropic(api_key=self.config['api_key'])
 
     def generate_requirements(self, project_description):
-        self.initialize_claude_api()
+        self.initialize_claude_client()
         cache_key = f"requirements_{hash(project_description)}"
         cached_requirements = self.cache_manager.get(cache_key)
         if cached_requirements:
@@ -86,13 +87,32 @@ class ClaudeRepoCreator:
 
         prompt = self.create_requirements_prompt(project_description)
         try:
-            response = self.claude_api.generate_response(prompt)
+            message = self.claude_client.messages.create(
+                model="claude-3-5-sonnet-20240620",
+                max_tokens=1000,
+                temperature=0,
+                system="You are an AI assistant specialized in software development and repository creation. Provide detailed and structured responses.",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+            response = message.content[0].text
+            logger.info(f"Received response from Claude API: {response[:100]}...")  # Log first 100 characters
             requirements = json.loads(response)
             self.validate_requirements(requirements)
             self.cache_manager.set(cache_key, requirements)
             return requirements
-        except json.JSONDecodeError:
-            logger.error("Failed to parse Claude's response as JSON.")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Claude's response as JSON: {e}")
+            logger.error(f"Raw response: {response}")
             raise ValueError("Invalid response format from Claude API.")
         except KeyError as e:
             logger.error(f"Missing required key in requirements: {str(e)}")
@@ -164,8 +184,8 @@ class ClaudeRepoCreator:
 
     def create_feature_files(self, feature, tech_stack):
         try:
-            self.initialize_claude_api()
-            code_generator = CodeGenerator(self.claude_api, tech_stack)
+            self.initialize_claude_client()
+            code_generator = CodeGenerator(self.claude_client, tech_stack)
             feature_code = code_generator.generate_feature_code(feature)
             
             code_tester = CodeTester(tech_stack)

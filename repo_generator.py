@@ -31,9 +31,17 @@ class RepoGenerator:
             ],
             # 他の技術スタック固有の.gitignoreパターンをここに追加
         }
+        self.repo_folder = None
 
-    def create_structure(self, structure, base_path="."):
+    def create_repo_folder(self, project_name):
+        """リポジトリ用の新しいフォルダを作成します"""
+        self.repo_folder = os.path.join(os.getcwd(), project_name)
+        os.makedirs(self.repo_folder, exist_ok=True)
+        logger.info(f"新しいリポジトリフォルダを作成しました: {self.repo_folder}")
+
+    def create_structure(self, structure, base_path=None):
         """フォルダ構造とファイルを作成します。"""
+        base_path = base_path or self.repo_folder
         for folder, contents in structure.items():
             folder_path = os.path.join(base_path, folder)
             os.makedirs(folder_path, exist_ok=True)
@@ -46,7 +54,8 @@ class RepoGenerator:
     def create_readme(self, requirements):
         """プロジェクト情報を含むREADME.mdファイルを作成します。"""
         try:
-            with open("README.md", "w") as f:
+            readme_path = os.path.join(self.repo_folder, "README.md")
+            with open(readme_path, "w") as f:
                 f.write(f"# {requirements['project_name']}\n\n")
                 f.write(f"{requirements['description']}\n\n")
                 f.write("## 機能\n\n")
@@ -64,7 +73,8 @@ class RepoGenerator:
     def create_gitignore(self, tech_stack):
         """技術スタックに基づいて.gitignoreファイルを作成します。"""
         try:
-            with open(".gitignore", "w") as f:
+            gitignore_path = os.path.join(self.repo_folder, ".gitignore")
+            with open(gitignore_path, "w") as f:
                 for tech in tech_stack:
                     if tech.lower() in self.gitignore_templates:
                         f.write(f"# {tech}固有の無視パターン\n")
@@ -79,8 +89,9 @@ class RepoGenerator:
         except IOError as e:
             logger.error(f".gitignoreの作成中にエラーが発生しました: {str(e)}")
 
-    def get_current_structure(self, base_path="."):
+    def get_current_structure(self, base_path=None):
         """現在のフォルダ構造を再帰的に取得します。"""
+        base_path = base_path or self.repo_folder
         structure = {}
         for item in os.listdir(base_path):
             item_path = os.path.join(base_path, item)
@@ -95,8 +106,9 @@ class RepoGenerator:
                 structure["files"].append(item)
         return structure
 
-    def update_structure(self, current_structure, updated_structure, base_path="."):
+    def update_structure(self, current_structure, updated_structure, base_path=None):
         """更新された構造に基づいて既存の構造を更新します。"""
+        base_path = base_path or self.repo_folder
         for folder, contents in updated_structure.items():
             folder_path = os.path.join(base_path, folder)
             if folder not in current_structure:
@@ -125,7 +137,8 @@ class RepoGenerator:
     def update_readme(self, requirements):
         """既存のREADME.mdファイルを更新します。"""
         try:
-            with open("README.md", "r+") as f:
+            readme_path = os.path.join(self.repo_folder, "README.md")
+            with open(readme_path, "r+") as f:
                 content = f.read()
                 f.seek(0)
                 f.write(f"# {requirements['project_name']}\n\n")
@@ -147,7 +160,8 @@ class RepoGenerator:
     def update_gitignore(self, tech_stack):
         """既存の.gitignoreファイルを更新します。"""
         try:
-            with open(".gitignore", "r+") as f:
+            gitignore_path = os.path.join(self.repo_folder, ".gitignore")
+            with open(gitignore_path, "r+") as f:
                 content = f.read()
                 f.seek(0)
                 for tech in tech_stack:
@@ -169,7 +183,7 @@ class RepoGenerator:
     def create_feature_files(self, feature_name, feature_code):
         """適切なディレクトリに機能ファイルを作成します。"""
         try:
-            feature_dir = os.path.join("src", "features", feature_name.lower().replace(' ', '_'))
+            feature_dir = os.path.join(self.repo_folder, "src", "features", feature_name.lower().replace(' ', '_'))
             os.makedirs(feature_dir, exist_ok=True)
             
             main_file = os.path.join(feature_dir, "main.py")  # または適切な拡張子

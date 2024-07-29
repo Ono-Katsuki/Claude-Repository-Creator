@@ -95,7 +95,7 @@ class ClaudeRepoCreator:
             try:
                 message = self.claude_client.messages.create(
                     model="claude-3-5-sonnet-20240620",
-                    max_tokens=1000,
+                    max_tokens=10000,
                     temperature=0,
                     system="You are an AI assistant specialized in software development and repository creation. Provide detailed and structured responses.",
                     messages=[

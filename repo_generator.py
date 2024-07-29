@@ -29,7 +29,49 @@ class RepoGenerator:
                 ".gradle/",
                 "build/",
             ],
-            # 他の技術スタック固有の.gitignoreパターンをここに追加
+            "react": [
+                "node_modules/",
+                "build/",
+                ".env",
+                "*.log",
+            ],
+            "react native": [
+                "node_modules/",
+                ".expo/",
+                "npm-debug.*",
+                "*.jks",
+                "*.p8",
+                "*.p12",
+                "*.key",
+                "*.mobileprovision",
+                "*.orig.*",
+                "web-build/",
+            ],
+            "html": [
+                "*.log",
+                "*.tmp",
+            ],
+            "css": [
+                "*.map",
+                "*.css.map",
+            ],
+            "ruby": [
+                "*.gem",
+                "*.rbc",
+                "/.config",
+                "/coverage/",
+                "/InstalledFiles",
+                "/pkg/",
+                "/spec/reports/",
+                "/spec/examples.txt",
+                "/test/tmp/",
+                "/test/version_tmp/",
+                "/tmp/",
+                "/.yardoc/",
+                "_yardoc/",
+                "/doc/",
+                "/rdoc/",
+            ],
         }
         self.repo_folder = None
 
@@ -76,9 +118,10 @@ class RepoGenerator:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
             with open(gitignore_path, "w") as f:
                 for tech in tech_stack:
-                    if tech.lower() in self.gitignore_templates:
+                    tech_lower = tech.lower()
+                    if tech_lower in self.gitignore_templates:
                         f.write(f"# {tech}固有の無視パターン\n")
-                        for pattern in self.gitignore_templates[tech.lower()]:
+                        for pattern in self.gitignore_templates[tech_lower]:
                             f.write(f"{pattern}\n")
                         f.write("\n")
                 f.write("# 一般的な無視パターン\n")
@@ -138,6 +181,9 @@ class RepoGenerator:
         """既存のREADME.mdファイルを更新します。"""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
+            if not os.path.exists(readme_path):
+                return self.create_readme(requirements)
+            
             with open(readme_path, "r+") as f:
                 content = f.read()
                 f.seek(0)
@@ -151,7 +197,7 @@ class RepoGenerator:
                     for criteria in feature['acceptance_criteria']:
                         f.write(f"- {criteria}\n")
                     f.write("\n")
-                f.write(content.split("## 機能")[1])
+                f.write(content.split("## 機能")[1] if "## 機能" in content else "")
                 f.truncate()
             logger.info("README.mdが正常に更新されました。")
         except IOError as e:
@@ -161,39 +207,57 @@ class RepoGenerator:
         """既存の.gitignoreファイルを更新します。"""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
+            if not os.path.exists(gitignore_path):
+                return self.create_gitignore(tech_stack)
+            
             with open(gitignore_path, "r+") as f:
                 content = f.read()
                 f.seek(0)
                 for tech in tech_stack:
-                    if tech.lower() in self.gitignore_templates:
+                    tech_lower = tech.lower()
+                    if tech_lower in self.gitignore_templates:
                         f.write(f"# {tech}固有の無視パターン\n")
-                        for pattern in self.gitignore_templates[tech.lower()]:
+                        for pattern in self.gitignore_templates[tech_lower]:
                             f.write(f"{pattern}\n")
                         f.write("\n")
                 f.write("# 一般的な無視パターン\n")
                 f.write(".DS_Store\n")
                 f.write(".idea/\n")
                 f.write(".vscode/\n")
-                f.write(content.split("# 一般的な無視パターン")[1])
+                f.write(content.split("# 一般的な無視パターン")[1] if "# 一般的な無視パターン" in content else "")
                 f.truncate()
             logger.info(".gitignoreが正常に更新されました。")
         except IOError as e:
             logger.error(f".gitignoreの更新中にエラーが発生しました: {str(e)}")
 
-    def create_feature_files(self, feature_name, feature_code):
-        """適切なディレクトリに機能ファイルを作成します。"""
+    def create_feature_files(self, feature_name, feature_code, tech_stack):
+        """適切なディレクトリに機能ファイルを作成します"""
         try:
             feature_dir = os.path.join(self.repo_folder, "src", "features", feature_name.lower().replace(' ', '_'))
             os.makedirs(feature_dir, exist_ok=True)
             
-            main_file = os.path.join(feature_dir, "main.py")  # または適切な拡張子
+            file_extension = self._get_file_extension(tech_stack[0].lower())
+            main_file = os.path.join(feature_dir, f"main{file_extension}")
             with open(main_file, 'w') as f:
                 f.write(feature_code)
             
-            test_file = os.path.join(feature_dir, "test.py")
+            test_file = os.path.join(feature_dir, f"test{file_extension}")
             with open(test_file, 'w') as f:
                 f.write(f"# TODO: {feature_name}のテストを実装する")
             
             logger.info(f"{feature_name}の機能ファイルが作成されました")
         except IOError as e:
             logger.error(f"{feature_name}の機能ファイル作成中にエラーが発生しました: {str(e)}")
+
+    def _get_file_extension(self, language):
+        extensions = {
+            'python': '.py',
+            'javascript': '.js',
+            'react': '.jsx',
+            'react native': '.js',
+            'html': '.html',
+            'css': '.css',
+            'ruby': '.rb',
+            'java': '.java'
+        }
+        return extensions.get(language, '.txt')

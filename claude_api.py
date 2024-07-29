@@ -6,7 +6,7 @@ class ClaudeAPI:
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = "claude-3-5-sonnet-20240620"  # デフォルトモデル
 
-    def generate_response(self, prompt: str, max_tokens: int = 1000, temperature: float = 0, system: str = "") -> str:
+    def generate_response(self, prompt: str, max_tokens: int = 4096, temperature: float = 0, system: str = "") -> str:
         """
         Claude APIを使用してレスポンスを生成します。
 

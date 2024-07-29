@@ -176,6 +176,9 @@ class ClaudeRepoCreator:
 
     def create_repository(self, requirements, update_existing=False):
         try:
+            project_name = requirements['project_name']
+            self.repo_generator.create_repo_folder(project_name)
+            
             if update_existing:
                 self.update_existing_repository(requirements)
             else:
@@ -186,7 +189,9 @@ class ClaudeRepoCreator:
             for feature in requirements['features']:
                 self.create_feature_files(feature, requirements['tech_stack'])
 
-            self.vc_system.initialize(requirements['project_name'])
+            self.vc_system.initialize(self.repo_generator.repo_folder)
+            
+            print(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} successfully in folder: {self.repo_generator.repo_folder}")
         except Exception as e:
             logger.error(f"Error creating repository: {str(e)}")
             raise
@@ -257,15 +262,15 @@ class ClaudeRepoCreator:
 
     def run(self):
         try:
-            project_description = input("Enter project description: ")
+            project_description = input("プロジェクトの説明を入力してください: ")
             requirements = self.generate_requirements(project_description)
             
-            update_existing = input("Update existing repository? (y/n): ").lower() == 'y'
+            update_existing = input("既存のリポジトリを更新しますか？ (y/n): ").lower() == 'y'
             self.create_repository(requirements, update_existing)
             
-            print(f"Repository for project: {requirements['project_name']} has been {'updated' if update_existing else 'created'} successfully.")
+            print(f"プロジェクト: {requirements['project_name']} のリポジトリが{'更新' if update_existing else '作成'}されました。フォルダ: {self.repo_generator.repo_folder}")
         except Exception as e:
-            logger.error(f"An error occurred during program execution: {str(e)}")
+            logger.error(f"プログラム実行中にエラーが発生しました: {str(e)}")
             sys.exit(1)
 
 if __name__ == "__main__":

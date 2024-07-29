@@ -75,6 +75,15 @@ class RepoGenerator:
         }
         self.repo_folder = None
 
+    def _normalize_language(self, language: str) -> str:
+        """言語名を正規化します。"""
+        language = language.lower()
+        if language in ['react', 'react.js', 'reactjs']:
+            return 'react'
+        if language in ['react native', 'react-native', 'reactnative']:
+            return 'react native'
+        return language
+
     def create_repo_folder(self, project_name):
         """リポジトリ用の新しいフォルダを作成します"""
         self.repo_folder = os.path.join(os.getcwd(), project_name)
@@ -118,7 +127,7 @@ class RepoGenerator:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
             with open(gitignore_path, "w") as f:
                 for tech in tech_stack:
-                    tech_lower = tech.lower()
+                    tech_lower = self._normalize_language(tech)
                     if tech_lower in self.gitignore_templates:
                         f.write(f"# {tech}固有の無視パターン\n")
                         for pattern in self.gitignore_templates[tech_lower]:
@@ -214,7 +223,7 @@ class RepoGenerator:
                 content = f.read()
                 f.seek(0)
                 for tech in tech_stack:
-                    tech_lower = tech.lower()
+                    tech_lower = self._normalize_language(tech)
                     if tech_lower in self.gitignore_templates:
                         f.write(f"# {tech}固有の無視パターン\n")
                         for pattern in self.gitignore_templates[tech_lower]:
@@ -236,7 +245,8 @@ class RepoGenerator:
             feature_dir = os.path.join(self.repo_folder, "src", "features", feature_name.lower().replace(' ', '_'))
             os.makedirs(feature_dir, exist_ok=True)
             
-            file_extension = self._get_file_extension(tech_stack[0].lower())
+            language = self._normalize_language(tech_stack[0])
+            file_extension = self._get_file_extension(language)
             main_file = os.path.join(feature_dir, f"main{file_extension}")
             with open(main_file, 'w') as f:
                 f.write(feature_code)

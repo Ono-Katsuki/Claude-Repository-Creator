@@ -32,7 +32,7 @@ class ClaudeRepoCreator:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.claude_client:
-            await self.claude_client.aclose()
+            await self.claude_client.close()  # Changed from aclose() to close()
 
     def load_config(self):
         config_manager = ConfigManager()
@@ -165,9 +165,11 @@ class ClaudeRepoCreator:
                 self.repo_generator.create_readme(requirements)
                 self.repo_generator.create_gitignore(requirements['tech_stack'])
             
-            await self.create_feature_files(requirements['features'], requirements['tech_stack'])
-
+            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'])
+            
             self.vc_system.initialize(self.repo_generator.repo_folder)
+            self.vc_system.add_all()
+            self.vc_system.commit("Initial commit")
             
             print(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} successfully in folder: {self.repo_generator.repo_folder}")
         except Exception as e:
@@ -191,20 +193,25 @@ class ClaudeRepoCreator:
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
             async def generate_and_test(feature):
-                feature_code = await code_generator.generate_feature_code(feature)
-                if feature_code is None:
-                    return feature['name'], None
-                
-                code_tester = CodeTester(tech_stack)
-                test_result = code_tester.test_code(feature_code)
-                
-                if test_result['success']:
-                    edited_code = self.show_code_editor(feature['name'], feature_code)
-                    self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
-                    return feature['name'], edited_code
-                else:
-                    logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
-                    self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
+                try:
+                    feature_code = await code_generator.generate_feature_code(feature)
+                    if feature_code is None:
+                        logger.warning(f"No code generated for {feature['name']}")
+                        return feature['name'], None
+                    
+                    code_tester = CodeTester(tech_stack)
+                    test_result = code_tester.test_code(feature_code)
+                    
+                    if test_result['success']:
+                        edited_code = self.show_code_editor(feature['name'], feature_code)
+                        self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
+                        return feature['name'], edited_code
+                    else:
+                        logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
+                        self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
+                        return feature['name'], None
+                except Exception as e:
+                    logger.error(f"Error processing feature {feature['name']}: {str(e)}")
                     return feature['name'], None
 
             tasks = [generate_and_test(feature) for feature in features]

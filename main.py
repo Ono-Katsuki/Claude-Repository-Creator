@@ -148,6 +148,9 @@ class ClaudeRepoCreator:
         {project_description}
 
         Provide the requirements in the following JSON format:
+        For the "tech_stack" field, please only use the following allowed values:
+        ["python", "javascript", "java", "react", "react native", "html", "css", "ruby"]
+
         {{
             "project_name": "string",
             "description": "string",

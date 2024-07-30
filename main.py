@@ -5,7 +5,7 @@ import logging
 import re
 from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
 import anthropic
-from claude_api import AICodeAssistant
+from ai_code_assistant import AICodeAssistant
 from repo_generator import RepoGenerator
 from config_manager import ConfigManager
 from cache_manager import CacheManager

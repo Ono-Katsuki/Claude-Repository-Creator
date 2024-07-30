@@ -2,7 +2,7 @@ import anthropic
 from typing import Dict, Any
 from config_manager import ConfigManager
 
-class ClaudeAPI:
+class AICodeAssistant:
     def __init__(self, api_key: str):
         self.config = self.load_config()
         self.client = anthropic.Anthropic(api_key=self.config['api_key'])

@@ -1,7 +1,7 @@
 import logging
 import re
 from typing import Dict, List
-from claude_api import AICodeAssistant
+from ai_code_assistant import AICodeAssistant
 
 logger = logging.getLogger(__name__)
 

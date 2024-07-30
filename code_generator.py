@@ -58,13 +58,7 @@ class CodeGenerator:
         return templates
 
     async def generate_feature_code(self, feature: Dict[str, any], max_retries: int = 3) -> Optional[str]:
-        """
-        Generates code based on the given feature using the Anthropic API asynchronously.
-        :param feature: Dictionary containing feature details
-        :param max_retries: Maximum number of retries in case of failure
-        :return: Generated code or None if all retries fail
-        """
-        language = self._normalize_language(self.tech_stack[0])  # Use the first technology as the language
+        language = self._normalize_language(self.tech_stack[0])
         template = self.templates.get(language, {})
 
         if not template:
@@ -93,13 +87,18 @@ class CodeGenerator:
                     ]
                 )
                 response = message.content[0].text
-                return self._process_code_response(response)
+                processed_code = self._process_code_response(response)
+                if processed_code:
+                    return processed_code
+                logger.warning(f"No valid code found in response for {feature['name']} (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
                 logger.error(f"Error occurred during code generation (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                if attempt == max_retries - 1:
-                    logger.error("All retries failed. Returning None.")
-                    return None
+            
+            if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
+        
+        logger.error(f"Failed to generate code for {feature['name']} after {max_retries} attempts")
+        return None
 
     def _create_prompt(self, feature: Dict[str, any], language: str, template: Dict[str, str]) -> str:
         """Creates the prompt for code generation."""
@@ -140,13 +139,18 @@ class CodeGenerator:
         """Formats the acceptance criteria."""
         return '\n'.join([f"- {c}" for c in criteria])
 
-    def _process_code_response(self, response: str) -> str:
-        """
-        Extracts the actual code from Claude API's response.
-        Looks for markdown code blocks and extracts them.
-        """
+    def _process_code_response(self, response: str) -> Optional[str]:
         code_blocks = re.findall(r'```[\w]*\n(.*?)```', response, re.DOTALL)
-        return '\n\n'.join(code_blocks)
+        if code_blocks:
+            return '\n\n'.join(code_blocks)
+        
+        # If no code blocks found, try to extract any content that looks like code
+        lines = response.split('\n')
+        code_lines = [line for line in lines if not line.startswith(('#', '//', '/*', '*', '*/')) and line.strip()]
+        if code_lines:
+            return '\n'.join(code_lines)
+        
+        return None
 
     def add_language_template(self, language: str, templates: Dict[str, str]) -> None:
         """

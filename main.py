@@ -165,7 +165,7 @@ class ClaudeRepoCreator:
                 self.repo_generator.create_readme(requirements)
                 self.repo_generator.create_gitignore(requirements['tech_stack'])
             
-            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'])
+            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'], requirements['folder_structure'])
             
             self.vc_system.initialize(self.repo_generator.repo_folder)
             self.vc_system.add_all()
@@ -187,25 +187,23 @@ class ClaudeRepoCreator:
             logger.error(f"Error updating existing repository: {str(e)}")
             raise
 
-    async def create_feature_files(self, features, tech_stack):
+    async def create_feature_files(self, features, tech_stack, folder_structure):
         try:
             self.initialize_claude_client()
-            code_generator = CodeGenerator(self.config['api_key'], tech_stack, output_dir=self.repo_generator.repo_folder)
+            code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            async def generate_and_test(feature):
+            async def generate_and_test(feature, file_path):
                 try:
-                    file_path = await code_generator.generate_and_save_feature_code(feature)
-                    if file_path is None:
+                    feature_code = await code_generator.generate_feature_code(feature)
+                    if feature_code is None:
                         logger.warning(f"No code generated for {feature['name']}")
                         return feature['name'], None
-                    
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        feature_code = f.read()
                     
                     code_tester = CodeTester(tech_stack)
                     test_result = code_tester.test_code(feature_code)
                     
                     if test_result['success']:
+                        code_generator.write_code_to_file(file_path, feature_code)
                         logger.info(f"Code for {feature['name']} passed tests and saved to {file_path}")
                         return feature['name'], file_path
                     else:
@@ -216,9 +214,17 @@ class ClaudeRepoCreator:
                     logger.error(f"Error processing feature {feature['name']}: {str(e)}")
                     return feature['name'], None
 
-            tasks = [generate_and_test(feature) for feature in features]
+            tasks = []
+            for feature in features:
+                feature_name = feature['name'].lower().replace(' ', '_')
+                if feature_name in folder_structure:
+                    for file in folder_structure[feature_name].get('files', []):
+                        file_path = os.path.join(self.repo_generator.repo_folder, feature_name, file)
+                        tasks.append(generate_and_test(feature, file_path))
+                else:
+                    logger.warning(f"No matching folder found for feature: {feature['name']}")
+
             results = []
-            
             for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Features"):
                 result = await future
                 results.append(result)

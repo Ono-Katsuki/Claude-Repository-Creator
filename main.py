@@ -28,6 +28,13 @@ class ClaudeRepoCreator:
         if self.debug_mode:
             logging.getLogger().setLevel(logging.DEBUG)
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.claude_client:
+            await self.claude_client.aclose()
+
     def load_config(self):
         config_manager = ConfigManager()
         config = config_manager.load_config()
@@ -247,7 +254,8 @@ class ClaudeRepoCreator:
             raise
 
     async def show_code_editor(self, feature_name, code):
-        return await asyncio.to_thread(self._show_code_editor_sync, feature_name, code)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._show_code_editor_sync, feature_name, code)
 
     def _show_code_editor_sync(self, feature_name, code):
         root = Tk()
@@ -272,7 +280,8 @@ class ClaudeRepoCreator:
         return edited_code[0]
 
     async def show_error_message(self, message):
-        await asyncio.to_thread(self._show_error_message_sync, message)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._show_error_message_sync, message)
 
     def _show_error_message_sync(self, message):
         root = Tk()
@@ -297,9 +306,14 @@ class ClaudeRepoCreator:
             print(f"プロジェクト: {requirements['project_name']} のリポジトリが{'更新' if update_existing else '作成'}されました。フォルダ: {self.repo_generator.repo_folder}")
         except Exception as e:
             logger.error(f"プログラム実行中にエラーが発生しました: {str(e)}")
-            sys.exit(1)
+        finally:
+            await self.__aexit__(None, None, None)
 
 if __name__ == "__main__":
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    creator = ClaudeRepoCreator(debug_mode=debug_mode)
-    asyncio.run(creator.run())
+    
+    async def main():
+        async with ClaudeRepoCreator(debug_mode=debug_mode) as creator:
+            await creator.run()
+
+    asyncio.run(main())

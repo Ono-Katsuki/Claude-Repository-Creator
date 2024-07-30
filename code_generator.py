@@ -1,15 +1,18 @@
+import anthropic
+import asyncio
 import logging
 import re
-from typing import Dict, List
-from ai_code_assistant import AICodeAssistant
+from typing import Dict, List, Optional
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
 class CodeGenerator:
-    def __init__(self, ai_client: AICodeAssistant, tech_stack: List[str]):
-        self.ai_client = ai_client
+    def __init__(self, api_key: str, tech_stack: List[str]):
+        self.api_key = api_key
         self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()
+        self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
     def _normalize_language(self, language: str) -> str:
         """Normalizes the language name."""
@@ -54,11 +57,12 @@ class CodeGenerator:
         }
         return templates
 
-    def generate_feature_code(self, feature: Dict[str, any]) -> str:
+    async def generate_feature_code(self, feature: Dict[str, any], max_retries: int = 3) -> Optional[str]:
         """
-        Generates code based on the given feature.
+        Generates code based on the given feature using the Anthropic API asynchronously.
         :param feature: Dictionary containing feature details
-        :return: Generated code
+        :param max_retries: Maximum number of retries in case of failure
+        :return: Generated code or None if all retries fail
         """
         language = self._normalize_language(self.tech_stack[0])  # Use the first technology as the language
         template = self.templates.get(language, {})
@@ -69,17 +73,33 @@ class CodeGenerator:
         prompt = self._create_prompt(feature, language, template)
         system_prompt = self._create_system_prompt(language)
 
-        try:
-            response = self.ai_client.generate_response(
-                prompt=prompt,
-                max_tokens=4096,
-                temperature=0,
-                system=system_prompt
-            )
-            return self._process_code_response(response)
-        except Exception as e:
-            logger.error(f"Error occurred during code generation: {str(e)}")
-            raise
+        for attempt in range(max_retries):
+            try:
+                message = await self.client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=4096,
+                    temperature=0,
+                    system=system_prompt,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ]
+                )
+                response = message.content[0].text
+                return self._process_code_response(response)
+            except Exception as e:
+                logger.error(f"Error occurred during code generation (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:
+                    logger.error("All retries failed. Returning None.")
+                    return None
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
     def _create_prompt(self, feature: Dict[str, any], language: str, template: Dict[str, str]) -> str:
         """Creates the prompt for code generation."""
@@ -156,3 +176,23 @@ class CodeGenerator:
         }
         normalized_language = self._normalize_language(language)
         return extensions.get(normalized_language, '.txt')
+
+    async def generate_code_for_features(self, features: List[Dict[str, any]]) -> Dict[str, Optional[str]]:
+        """
+        Generates code for multiple features concurrently.
+        :param features: List of feature dictionaries
+        :return: Dictionary mapping feature names to generated code
+        """
+        async def generate_with_progress(feature):
+            return feature['name'], await self.generate_feature_code(feature)
+
+        tasks = [generate_with_progress(feature) for feature in features]
+        results = {}
+        
+        with tqdm(total=len(features), desc="Generating Code", unit="feature") as pbar:
+            for future in asyncio.as_completed(tasks):
+                name, code = await future
+                results[name] = code
+                pbar.update(1)
+        
+        return results

@@ -72,9 +72,9 @@ class CodeGenerator:
         try:
             response = self.ai_client.generate_response(
                 prompt=prompt,
-                system=system_prompt,
                 max_tokens=4096,
-                temperature=0
+                temperature=0,
+                system=system_prompt
             )
             return self._process_code_response(response)
         except Exception as e:

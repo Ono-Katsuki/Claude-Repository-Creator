@@ -6,8 +6,8 @@ from claude_api import ClaudeAPI
 logger = logging.getLogger(__name__)
 
 class CodeGenerator:
-    def __init__(self, claude_api: ClaudeAPI, tech_stack: List[str]):
-        self.claude_api = claude_api
+    def __init__(self, ai_client: ClaudeAPI, tech_stack: List[str]):
+        self.claude_api = ai_client
         self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()
 
@@ -70,7 +70,7 @@ class CodeGenerator:
         system_prompt = self._create_system_prompt(language)
 
         try:
-            response = self.claude_api.generate_response(
+            response = self.ai_client.generate_response(
                 prompt=prompt,
                 system=system_prompt,
                 max_tokens=4096,

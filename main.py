@@ -141,7 +141,22 @@ class ClaudeRepoCreator:
             "folder_structure": {{
                 "folder_name": {{
                     "subfolders": {{}},
-                    "files": ["string"]
+                    "files": [
+                        {{
+                            "name": "string",
+                            "type": "class|function|component",
+                            "description": "string",
+                            "properties": ["string"],
+                            "methods": [
+                                {{
+                                    "name": "string",
+                                    "params": ["string"],
+                                    "return_type": "string",
+                                    "description": "string"
+                                }}
+                            ]
+                        }}
+                    ]
                 }}
             }}
         }}
@@ -192,35 +207,35 @@ class ClaudeRepoCreator:
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            async def generate_and_test(feature, file_path):
+            async def generate_and_test(feature, file_info, file_path):
                 try:
-                    feature_code = await code_generator.generate_feature_code(feature)
+                    feature_code = await code_generator.generate_feature_code(feature, file_info)
                     if feature_code is None:
-                        logger.warning(f"No code generated for {feature['name']}")
-                        return feature['name'], None
+                        logger.warning(f"No code generated for {feature['name']} - {file_info['name']}")
+                        return f"{feature['name']} - {file_info['name']}", None
                     
                     code_tester = CodeTester(tech_stack)
                     test_result = code_tester.test_code(feature_code)
                     
                     if test_result['success']:
                         code_generator.write_code_to_file(file_path, feature_code)
-                        logger.info(f"Code for {feature['name']} passed tests and saved to {file_path}")
-                        return feature['name'], file_path
+                        logger.info(f"Code for {feature['name']} - {file_info['name']} passed tests and saved to {file_path}")
+                        return f"{feature['name']} - {file_info['name']}", file_path
                     else:
-                        logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
-                        self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
-                        return feature['name'], None
+                        logger.error(f"Generated code for {feature['name']} - {file_info['name']} contains errors: {test_result['message']}")
+                        self.show_error_message(f"Error in {feature['name']} - {file_info['name']}: {test_result['message']}")
+                        return f"{feature['name']} - {file_info['name']}", None
                 except Exception as e:
-                    logger.error(f"Error processing feature {feature['name']}: {str(e)}")
-                    return feature['name'], None
+                    logger.error(f"Error processing feature {feature['name']} - {file_info['name']}: {str(e)}")
+                    return f"{feature['name']} - {file_info['name']}", None
 
             tasks = []
             for feature in features:
                 feature_name = feature['name'].lower().replace(' ', '_')
                 if feature_name in folder_structure:
-                    for file in folder_structure[feature_name].get('files', []):
-                        file_path = os.path.join(self.repo_generator.repo_folder, feature_name, file)
-                        tasks.append(generate_and_test(feature, file_path))
+                    for file_info in folder_structure[feature_name].get('files', []):
+                        file_path = os.path.join(self.repo_generator.repo_folder, feature_name, file_info['name'])
+                        tasks.append(generate_and_test(feature, file_info, file_path))
                 else:
                     logger.warning(f"No matching folder found for feature: {feature['name']}")
 

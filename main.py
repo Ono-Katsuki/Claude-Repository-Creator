@@ -3,9 +3,10 @@ import sys
 import json
 import logging
 import re
+import asyncio
 from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
 import anthropic
-from ai_code_assistant import AICodeAssistant
+from tqdm import tqdm
 from repo_generator import RepoGenerator
 from config_manager import ConfigManager
 from cache_manager import CacheManager
@@ -80,9 +81,9 @@ class ClaudeRepoCreator:
 
     def initialize_claude_client(self):
         if not self.claude_client:
-            self.claude_client = anthropic.Anthropic(api_key=self.config['api_key'])
+            self.claude_client = anthropic.AsyncAnthropic(api_key=self.config['api_key'])
 
-    def generate_requirements(self, project_description):
+    async def generate_requirements(self, project_description):
         self.initialize_claude_client()
         cache_key = f"requirements_{hash(project_description)}"
         cached_requirements = self.cache_manager.get(cache_key)
@@ -93,7 +94,7 @@ class ClaudeRepoCreator:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                message = self.claude_client.messages.create(
+                message = await self.claude_client.messages.create(
                     model="claude-3-5-sonnet-20240620",
                     max_tokens=4096,
                     temperature=0,
@@ -129,6 +130,7 @@ class ClaudeRepoCreator:
                 logger.error(f"Raw response: {response}")
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
                 else:
                     raise ValueError("Invalid response format from Claude API after multiple attempts.")
             except KeyError as e:
@@ -138,6 +140,7 @@ class ClaudeRepoCreator:
                 logger.error(f"Error generating requirements: {str(e)}")
                 if attempt < max_retries - 1:
                     logger.info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
                 else:
                     raise
 
@@ -177,20 +180,19 @@ class ClaudeRepoCreator:
             if key not in requirements:
                 raise KeyError(f"Missing required key: {key}")
 
-    def create_repository(self, requirements, update_existing=False):
+    async def create_repository(self, requirements, update_existing=False):
         try:
             project_name = requirements['project_name']
             self.repo_generator.create_repo_folder(project_name)
             
             if update_existing:
-                self.update_existing_repository(requirements)
+                await self.update_existing_repository(requirements)
             else:
                 self.repo_generator.create_structure(requirements['folder_structure'])
                 self.repo_generator.create_readme(requirements)
                 self.repo_generator.create_gitignore(requirements['tech_stack'])
             
-            for feature in requirements['features']:
-                self.create_feature_files(feature, requirements['tech_stack'])
+            await self.create_feature_files(requirements['features'], requirements['tech_stack'])
 
             self.vc_system.initialize(self.repo_generator.repo_folder)
             
@@ -199,7 +201,7 @@ class ClaudeRepoCreator:
             logger.error(f"Error creating repository: {str(e)}")
             raise
 
-    def update_existing_repository(self, requirements):
+    async def update_existing_repository(self, requirements):
         try:
             current_structure = self.repo_generator.get_current_structure()
             updated_structure = requirements['folder_structure']
@@ -210,26 +212,44 @@ class ClaudeRepoCreator:
             logger.error(f"Error updating existing repository: {str(e)}")
             raise
 
-    def create_feature_files(self, feature, tech_stack):
+    async def create_feature_files(self, features, tech_stack):
         try:
             self.initialize_claude_client()
-            code_generator = CodeGenerator(self.claude_client, tech_stack)
-            feature_code = code_generator.generate_feature_code(feature)
+            code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            code_tester = CodeTester(tech_stack)
-            test_result = code_tester.test_code(feature_code)
+            async def generate_and_test(feature):
+                feature_code = await code_generator.generate_feature_code(feature)
+                if feature_code is None:
+                    return feature['name'], None
+                
+                code_tester = CodeTester(tech_stack)
+                test_result = code_tester.test_code(feature_code)
+                
+                if test_result['success']:
+                    edited_code = await self.show_code_editor(feature['name'], feature_code)
+                    self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
+                    return feature['name'], edited_code
+                else:
+                    logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
+                    await self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
+                    return feature['name'], None
+
+            tasks = [generate_and_test(feature) for feature in features]
+            results = []
             
-            if test_result['success']:
-                edited_code = self.show_code_editor(feature['name'], feature_code)
-                self.repo_generator.create_feature_files(feature['name'], edited_code)
-            else:
-                logger.error(f"Generated code contains errors: {test_result['message']}")
-                self.show_error_message(test_result['message'])
+            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Features"):
+                result = await future
+                results.append(result)
+            
+            return dict(results)
         except Exception as e:
             logger.error(f"Error creating feature files: {str(e)}")
             raise
 
-    def show_code_editor(self, feature_name, code):
+    async def show_code_editor(self, feature_name, code):
+        return await asyncio.to_thread(self._show_code_editor_sync, feature_name, code)
+
+    def _show_code_editor_sync(self, feature_name, code):
         root = Tk()
         root.title(f"Code Editor - {feature_name}")
         
@@ -251,7 +271,10 @@ class ClaudeRepoCreator:
 
         return edited_code[0]
 
-    def show_error_message(self, message):
+    async def show_error_message(self, message):
+        await asyncio.to_thread(self._show_error_message_sync, message)
+
+    def _show_error_message_sync(self, message):
         root = Tk()
         root.title("Error")
         
@@ -263,13 +286,13 @@ class ClaudeRepoCreator:
 
         root.mainloop()
 
-    def run(self):
+    async def run(self):
         try:
             project_description = input("プロジェクトの説明を入力してください: ")
-            requirements = self.generate_requirements(project_description)
+            requirements = await self.generate_requirements(project_description)
             
             update_existing = input("既存のリポジトリを更新しますか？ (y/n): ").lower() == 'y'
-            self.create_repository(requirements, update_existing)
+            await self.create_repository(requirements, update_existing)
             
             print(f"プロジェクト: {requirements['project_name']} のリポジトリが{'更新' if update_existing else '作成'}されました。フォルダ: {self.repo_generator.repo_folder}")
         except Exception as e:
@@ -279,4 +302,4 @@ class ClaudeRepoCreator:
 if __name__ == "__main__":
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     creator = ClaudeRepoCreator(debug_mode=debug_mode)
-    creator.run()
+    asyncio.run(creator.run())

@@ -1,22 +1,55 @@
 from abc import ABC, abstractmethod
 import subprocess
+import os
 
 class VersionControl(ABC):
     @abstractmethod
-    def initialize(self, project_name):
+    def initialize(self, project_path):
+        pass
+
+    @abstractmethod
+    def add_all(self):
+        pass
+
+    @abstractmethod
+    def commit(self, message):
         pass
 
 class Git(VersionControl):
-    def initialize(self, project_name):
-        subprocess.run(["git", "init", project_name])
-        subprocess.run(["git", "add", "."])
-        subprocess.run(["git", "commit", "-m", "Initial commit"])
+    def __init__(self):
+        self.repo_path = None
+
+    def initialize(self, project_path):
+        self.repo_path = project_path
+        subprocess.run(["git", "init", self.repo_path], check=True)
+
+    def add_all(self):
+        if not self.repo_path:
+            raise ValueError("Repository not initialized")
+        subprocess.run(["git", "-C", self.repo_path, "add", "."], check=True)
+
+    def commit(self, message):
+        if not self.repo_path:
+            raise ValueError("Repository not initialized")
+        subprocess.run(["git", "-C", self.repo_path, "commit", "-m", message], check=True)
 
 class Mercurial(VersionControl):
-    def initialize(self, project_name):
-        subprocess.run(["hg", "init", project_name])
-        subprocess.run(["hg", "add"])
-        subprocess.run(["hg", "commit", "-m", "Initial commit"])
+    def __init__(self):
+        self.repo_path = None
+
+    def initialize(self, project_path):
+        self.repo_path = project_path
+        subprocess.run(["hg", "init", self.repo_path], check=True)
+
+    def add_all(self):
+        if not self.repo_path:
+            raise ValueError("Repository not initialized")
+        subprocess.run(["hg", "-R", self.repo_path, "add"], check=True)
+
+    def commit(self, message):
+        if not self.repo_path:
+            raise ValueError("Repository not initialized")
+        subprocess.run(["hg", "-R", self.repo_path, "commit", "-m", message], check=True)
 
 class VersionControlFactory:
     @staticmethod

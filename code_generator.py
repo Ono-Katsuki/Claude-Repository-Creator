@@ -1,12 +1,12 @@
 import logging
 import re
 from typing import Dict, List
-from claude_api import ClaudeAPI
+from claude_api import AICodeAssistant
 
 logger = logging.getLogger(__name__)
 
 class CodeGenerator:
-    def __init__(self, ai_client: ClaudeAPI, tech_stack: List[str]):
+    def __init__(self, ai_client: AICodeAssistant, tech_stack: List[str]):
         self.ai_client = ai_client
         self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()

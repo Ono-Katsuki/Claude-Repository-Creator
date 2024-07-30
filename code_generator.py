@@ -3,6 +3,7 @@ import asyncio
 import logging
 import re
 from typing import Dict, List, Optional
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +57,14 @@ class CodeGenerator:
         }
         return templates
 
-    async def generate_feature_code(self, feature: Dict[str, any], max_retries: int = 3) -> Optional[str]:
+    async def generate_feature_code(self, feature: Dict[str, any], file_info: Dict[str, any], max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
         template = self.templates.get(language, {})
 
         if not template:
             raise ValueError(f"Unsupported language: {language}")
 
-        prompt = self._create_prompt(feature, language, template)
+        prompt = self._create_prompt(feature, file_info, language, template)
         system_prompt = self._create_system_prompt(language)
 
         for attempt in range(max_retries):
@@ -89,34 +90,43 @@ class CodeGenerator:
                 processed_code = self._process_code_response(response)
                 if processed_code:
                     return processed_code
-                logger.warning(f"No valid code found in response for {feature['name']} (attempt {attempt + 1}/{max_retries})")
+                logger.warning(f"No valid code found in response for {feature['name']} - {file_info['name']} (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
-                logger.error(f"Error occurred during code generation (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(f"Error occurred during code generation for {feature['name']} - {file_info['name']} (attempt {attempt + 1}/{max_retries}): {str(e)}")
             
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
         
-        logger.error(f"Failed to generate code for {feature['name']} after {max_retries} attempts")
+        logger.error(f"Failed to generate code for {feature['name']} - {file_info['name']} after {max_retries} attempts")
         return None
 
-    def _create_prompt(self, feature: Dict[str, any], language: str, template: Dict[str, str]) -> str:
+    def _create_prompt(self, feature: Dict[str, any], file_info: Dict[str, any], language: str, template: Dict[str, str]) -> str:
         """Creates the prompt for code generation."""
         return f"""
-        Generate {language} code based on the following feature:
+        Generate {language} code based on the following feature and file information:
 
         Feature Name: {feature['name']}
-        Description: {feature['description']}
+        Feature Description: {feature['description']}
         Acceptance Criteria:
         {self._format_acceptance_criteria(feature['acceptance_criteria'])}
+
+        File Information:
+        Name: {file_info['name']}
+        Type: {file_info['type']}
+        Description: {file_info['description']}
+        Properties: {', '.join(file_info.get('properties', []))}
+        Methods:
+        {self._format_methods(file_info.get('methods', []))}
 
         Use the following templates:
         {template}
 
         Please include the following in your code:
-        1. Appropriate class, function, or component definitions
-        2. Core logic of the feature
-        3. Error handling (where applicable)
-        4. Comments explaining how the implementation meets the acceptance criteria
+        1. Appropriate {file_info['type']} definition based on the file information
+        2. All specified properties and methods
+        3. Core logic of the feature
+        4. Error handling (where applicable)
+        5. Comments explaining how the implementation meets the acceptance criteria
 
         Ensure the generated code follows best practices for {language}.
         For HTML, provide appropriate structure; for CSS, include relevant styles.
@@ -136,7 +146,7 @@ class CodeGenerator:
         """Creates the system prompt for code generation."""
         return f"""
         You are an expert {language} programmer.
-        Generate clean, efficient, and best practice-compliant {language} code based on the given feature requirements.
+        Generate clean, efficient, and best practice-compliant {language} code based on the given feature requirements and file information.
         The code should be concise yet sufficiently detailed for other developers to easily understand and extend.
         Include appropriate comments to explain important parts or complex logic when necessary.
         Always consider security, performance, and scalability in your implementation.
@@ -147,6 +157,13 @@ class CodeGenerator:
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:
         """Formats the acceptance criteria."""
         return '\n'.join([f"- {c}" for c in criteria])
+
+    def _format_methods(self, methods: List[Dict[str, any]]) -> str:
+        """Formats the methods information for the prompt."""
+        formatted_methods = []
+        for method in methods:
+            formatted_methods.append(f"- {method['name']}({', '.join(method['params'])}): {method['return_type']}\n  Description: {method['description']}")
+        return '\n'.join(formatted_methods)
 
     def _process_code_response(self, response: str) -> Optional[str]:
         code_blocks = re.findall(r'```[\w]*\n(.*?)```', response, re.DOTALL)
@@ -200,19 +217,25 @@ class CodeGenerator:
         normalized_language = self._normalize_language(language)
         return extensions.get(normalized_language, '.txt')
 
-    async def generate_code_for_features(self, features: List[Dict[str, any]]) -> Dict[str, Optional[str]]:
+    async def generate_code_for_features(self, features: List[Dict[str, any]], folder_structure: Dict[str, any]) -> Dict[str, Optional[str]]:
         """
         Generates code for multiple features concurrently.
         :param features: List of feature dictionaries
+        :param folder_structure: Dictionary containing folder structure and file information
         :return: Dictionary mapping feature names to generated code
         """
-        async def generate_with_progress(feature):
-            return feature['name'], await self.generate_feature_code(feature)
+        async def generate_with_progress(feature, file_info):
+            return f"{feature['name']} - {file_info['name']}", await self.generate_feature_code(feature, file_info)
 
-        tasks = [generate_with_progress(feature) for feature in features]
+        tasks = []
+        for feature in features:
+            feature_name = feature['name'].lower().replace(' ', '_')
+            if feature_name in folder_structure:
+                for file_info in folder_structure[feature_name].get('files', []):
+                    tasks.append(generate_with_progress(feature, file_info))
+
         results = {}
-        
-        with tqdm(total=len(features), desc="Generating Code", unit="feature") as pbar:
+        with tqdm(total=len(tasks), desc="Generating Code", unit="file") as pbar:
             for future in asyncio.as_completed(tasks):
                 name, code = await future
                 results[name] = code

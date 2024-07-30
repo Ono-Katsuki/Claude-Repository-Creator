@@ -4,7 +4,6 @@ import json
 import logging
 import re
 import asyncio
-from tkinter import Tk, scrolledtext, Button, Label, Entry, StringVar
 import anthropic
 from tqdm import tqdm
 from repo_generator import RepoGenerator
@@ -44,39 +43,6 @@ class ClaudeRepoCreator:
         return config
 
     def prompt_for_api_key(self):
-        print("API key is not set. How would you like to enter it?")
-        print("1. GUI")
-        print("2. Console")
-        choice = input("Enter your choice (1 or 2): ")
-        
-        if choice == '1':
-            return self.prompt_gui_input()
-        elif choice == '2':
-            return self.prompt_console_input()
-        else:
-            print("Invalid choice. Defaulting to console input.")
-            return self.prompt_console_input()
-
-    def prompt_gui_input(self):
-        root = Tk()
-        root.title("Enter API Key")
-        
-        api_key = StringVar()
-        
-        Label(root, text="Please enter your Claude API key:").pack(pady=10)
-        Entry(root, textvariable=api_key, show="*", width=50).pack(pady=5)
-        
-        def save_and_exit():
-            root.quit()
-        
-        Button(root, text="Save", command=save_and_exit).pack(pady=10)
-        
-        root.mainloop()
-        root.destroy()
-        
-        return api_key.get()
-
-    def prompt_console_input(self):
         while True:
             api_key = input("Please enter your Claude API key: ").strip()
             if api_key:
@@ -233,12 +199,12 @@ class ClaudeRepoCreator:
                 test_result = code_tester.test_code(feature_code)
                 
                 if test_result['success']:
-                    edited_code = await self.show_code_editor(feature['name'], feature_code)
+                    edited_code = self.show_code_editor(feature['name'], feature_code)
                     self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
                     return feature['name'], edited_code
                 else:
                     logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
-                    await self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
+                    self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
                     return feature['name'], None
 
             tasks = [generate_and_test(feature) for feature in features]
@@ -253,47 +219,29 @@ class ClaudeRepoCreator:
             logger.error(f"Error creating feature files: {str(e)}")
             raise
 
-    async def show_code_editor(self, feature_name, code):
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._show_code_editor_sync, feature_name, code)
-
-    def _show_code_editor_sync(self, feature_name, code):
-        root = Tk()
-        root.title(f"Code Editor - {feature_name}")
+    def show_code_editor(self, feature_name, code):
+        print(f"\n--- Code for {feature_name} ---\n")
+        print(code)
+        print("\n--- End of code ---\n")
         
-        editor = scrolledtext.ScrolledText(root, width=100, height=30)
-        editor.insert("1.0", code)
-        editor.pack()
+        while True:
+            choice = input("Do you want to edit this code? (y/n): ").lower()
+            if choice == 'y':
+                print("Enter the new code below. Type 'END' on a new line when you're finished:")
+                new_code_lines = []
+                while True:
+                    line = input()
+                    if line.strip().upper() == 'END':
+                        break
+                    new_code_lines.append(line)
+                return '\n'.join(new_code_lines)
+            elif choice == 'n':
+                return code
+            else:
+                print("Invalid choice. Please enter 'y' or 'n'.")
 
-        edited_code = [code]
-
-        def save_and_exit():
-            edited_code[0] = editor.get("1.0", "end-1c")
-            root.quit()
-
-        save_button = Button(root, text="Save and Close", command=save_and_exit)
-        save_button.pack()
-
-        root.mainloop()
-        root.destroy()
-
-        return edited_code[0]
-
-    async def show_error_message(self, message):
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._show_error_message_sync, message)
-
-    def _show_error_message_sync(self, message):
-        root = Tk()
-        root.title("Error")
-        
-        label = Label(root, text=message)
-        label.pack(padx=20, pady=20)
-
-        ok_button = Button(root, text="OK", command=root.destroy)
-        ok_button.pack(pady=10)
-
-        root.mainloop()
+    def show_error_message(self, message):
+        print(f"Error: {message}")
 
     async def run(self):
         try:

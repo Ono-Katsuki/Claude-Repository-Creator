@@ -1,5 +1,6 @@
 import anthropic
 from typing import Dict, Any
+from config_manager import ConfigManager
 
 class ClaudeAPI:
     def __init__(self, api_key: str):

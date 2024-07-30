@@ -32,7 +32,7 @@ class ClaudeRepoCreator:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.claude_client:
-            await self.claude_client.close()  # Changed from aclose() to close()
+            await self.claude_client.close()
 
     def load_config(self):
         config_manager = ConfigManager()
@@ -190,22 +190,24 @@ class ClaudeRepoCreator:
     async def create_feature_files(self, features, tech_stack):
         try:
             self.initialize_claude_client()
-            code_generator = CodeGenerator(self.config['api_key'], tech_stack)
+            code_generator = CodeGenerator(self.config['api_key'], tech_stack, output_dir=self.repo_generator.repo_folder)
             
             async def generate_and_test(feature):
                 try:
-                    feature_code = await code_generator.generate_feature_code(feature)
-                    if feature_code is None:
+                    file_path = await code_generator.generate_and_save_feature_code(feature)
+                    if file_path is None:
                         logger.warning(f"No code generated for {feature['name']}")
                         return feature['name'], None
+                    
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        feature_code = f.read()
                     
                     code_tester = CodeTester(tech_stack)
                     test_result = code_tester.test_code(feature_code)
                     
                     if test_result['success']:
-                        edited_code = self.show_code_editor(feature['name'], feature_code)
-                        self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
-                        return feature['name'], edited_code
+                        logger.info(f"Code for {feature['name']} passed tests and saved to {file_path}")
+                        return feature['name'], file_path
                     else:
                         logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
                         self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
@@ -225,27 +227,6 @@ class ClaudeRepoCreator:
         except Exception as e:
             logger.error(f"Error creating feature files: {str(e)}")
             raise
-
-    def show_code_editor(self, feature_name, code):
-        print(f"\n--- Code for {feature_name} ---\n")
-        print(code)
-        print("\n--- End of code ---\n")
-        
-        while True:
-            choice = input("Do you want to edit this code? (y/n): ").lower()
-            if choice == 'y':
-                print("Enter the new code below. Type 'END' on a new line when you're finished:")
-                new_code_lines = []
-                while True:
-                    line = input()
-                    if line.strip().upper() == 'END':
-                        break
-                    new_code_lines.append(line)
-                return '\n'.join(new_code_lines)
-            elif choice == 'n':
-                return code
-            else:
-                print("Invalid choice. Please enter 'y' or 'n'.")
 
     def show_error_message(self, message):
         print(f"Error: {message}")

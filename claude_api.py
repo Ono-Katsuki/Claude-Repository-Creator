@@ -3,6 +3,7 @@ from typing import Dict, Any
 
 class ClaudeAPI:
     def __init__(self, api_key: str):
+        self.config = self.load_config()
         self.client = anthropic.Anthropic(api_key=self.config['api_key'])
         self.model = "claude-3-5-sonnet-20240620"  # デフォルトモデル
 

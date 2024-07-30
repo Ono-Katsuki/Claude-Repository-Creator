@@ -1,11 +1,21 @@
 import anthropic
 from typing import Dict, Any
+from config_manager import ConfigManager
 
-class ClaudeAPI:
+class AICodeAssistant:
     def __init__(self, api_key: str):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        print('ここまで来たよ')
+        self.config = self.load_config()
         self.model = "claude-3-5-sonnet-20240620"  # デフォルトモデル
 
+    def load_config(self):
+        config_manager = ConfigManager()
+        config = config_manager.load_config()
+        if not config.get('api_key'):
+            config['api_key'] = self.prompt_for_api_key()
+            config_manager.save_config(config)
+        return config
+        
     def generate_response(self, prompt: str, max_tokens: int = 4096, temperature: float = 0, system: str = "") -> str:
         """
         Claude APIを使用してレスポンスを生成します。
@@ -16,6 +26,7 @@ class ClaudeAPI:
         :param system: システムメッセージ
         :return: 生成されたレスポンス
         """
+        self.client = anthropic.Anthropic(api_key=self.config['api_key'])
         try:
             message = self.client.messages.create(
                 model=self.model,

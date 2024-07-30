@@ -1,17 +1,18 @@
 import logging
 import re
 from typing import Dict, List
+from claude_api import ClaudeAPI
 
 logger = logging.getLogger(__name__)
 
 class CodeGenerator:
-    def __init__(self, claude_api, tech_stack: List[str]):
+    def __init__(self, claude_api: ClaudeAPI, tech_stack: List[str]):
         self.claude_api = claude_api
         self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()
 
     def _normalize_language(self, language: str) -> str:
-        """言語名を正規化します。"""
+        """Normalizes the language name."""
         language = language.lower()
         if language in ['react', 'react.js', 'reactjs']:
             return 'react'
@@ -20,7 +21,7 @@ class CodeGenerator:
         return language
 
     def load_templates(self) -> Dict[str, Dict[str, str]]:
-        """各言語や設計パターンに応じたテンプレートをロードします。"""
+        """Loads templates for each language and design pattern."""
         templates = {
             'python': {
                 'class': "class {class_name}:\n    def __init__(self):\n        pass\n\n    {methods}",
@@ -55,77 +56,94 @@ class CodeGenerator:
 
     def generate_feature_code(self, feature: Dict[str, any]) -> str:
         """
-        与えられた機能に基づいてコードを生成します。
-        :param feature: 機能の詳細を含む辞書
-        :return: 生成されたコード
+        Generates code based on the given feature.
+        :param feature: Dictionary containing feature details
+        :return: Generated code
         """
-        language = self._normalize_language(self.tech_stack[0])  # 最初の技術を言語として使用
+        language = self._normalize_language(self.tech_stack[0])  # Use the first technology as the language
         template = self.templates.get(language, {})
 
         if not template:
-            raise ValueError(f"サポートされていない言語です: {language}")
+            raise ValueError(f"Unsupported language: {language}")
 
         prompt = self._create_prompt(feature, language, template)
+        system_prompt = self._create_system_prompt(language)
 
         try:
-            response = self.claude_api.generate_response(prompt)
+            response = self.claude_api.generate_response(
+                prompt=prompt,
+                system=system_prompt,
+                max_tokens=4096,
+                temperature=0
+            )
             return self._process_code_response(response)
         except Exception as e:
-            logger.error(f"コード生成中にエラーが発生しました: {str(e)}")
+            logger.error(f"Error occurred during code generation: {str(e)}")
             raise
 
     def _create_prompt(self, feature: Dict[str, any], language: str, template: Dict[str, str]) -> str:
-        """プロンプトを作成します。"""
+        """Creates the prompt for code generation."""
         return f"""
-        以下の機能に基づいて、{language}を使用したコードを生成してください:
+        Generate {language} code based on the following feature:
 
-        機能名: {feature['name']}
-        説明: {feature['description']}
-        受け入れ基準:
+        Feature Name: {feature['name']}
+        Description: {feature['description']}
+        Acceptance Criteria:
         {self._format_acceptance_criteria(feature['acceptance_criteria'])}
 
-        使用するテンプレート:
+        Use the following templates:
         {template}
 
-        コードには以下を含めてください:
-        1. 適切なクラス、関数、またはコンポーネントの定義
-        2. 機能の主要なロジック
-        3. エラー処理（該当する場合）
-        4. コメントで説明された受け入れ基準の実装方法
+        Please include the following in your code:
+        1. Appropriate class, function, or component definitions
+        2. Core logic of the feature
+        3. Error handling (where applicable)
+        4. Comments explaining how the implementation meets the acceptance criteria
 
-        生成されたコードは、{language}のベストプラクティスに従ってください。
-        HTMLの場合は適切な構造を、CSSの場合は関連するスタイルを生成してください。
-        Reactの場合は、必要に応じてステート管理やライフサイクルメソッドを含めてください。
+        Ensure the generated code follows best practices for {language}.
+        For HTML, provide appropriate structure; for CSS, include relevant styles.
+        For React, include state management and lifecycle methods as necessary.
+        """
+
+    def _create_system_prompt(self, language: str) -> str:
+        """Creates the system prompt for code generation."""
+        return f"""
+        You are an expert {language} programmer.
+        Generate clean, efficient, and best practice-compliant {language} code based on the given feature requirements.
+        The code should be concise yet sufficiently detailed for other developers to easily understand and extend.
+        Include appropriate comments to explain important parts or complex logic when necessary.
+        Always consider security, performance, and scalability in your implementation.
+        Aim for production-ready quality in the generated code.
         """
 
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:
-        """受け入れ基準をフォーマットします。"""
+        """Formats the acceptance criteria."""
         return '\n'.join([f"- {c}" for c in criteria])
 
     def _process_code_response(self, response: str) -> str:
         """
-        Claude APIのレスポンスから実際のコードを抽出します。
-        マークダウンのコードブロックを探して抽出します。
+        Extracts the actual code from Claude API's response.
+        Looks for markdown code blocks and extracts them.
         """
         code_blocks = re.findall(r'```[\w]*\n(.*?)```', response, re.DOTALL)
         return '\n\n'.join(code_blocks)
 
     def add_language_template(self, language: str, templates: Dict[str, str]) -> None:
         """
-        新しい言語のテンプレートを追加します。
-        :param language: 追加する言語の名前
-        :param templates: 言語のテンプレート辞書
+        Adds a new language template.
+        :param language: Name of the language to add
+        :param templates: Dictionary of templates for the language
         """
         normalized_language = self._normalize_language(language)
         self.templates[normalized_language] = templates
-        logger.info(f"新しい言語テンプレートが追加されました: {normalized_language}")
+        logger.info(f"New language template added: {normalized_language}")
 
     def get_supported_languages(self) -> List[str]:
-        """サポートされている言語のリストを返します。"""
+        """Returns a list of supported languages."""
         return list(self.templates.keys())
 
     def get_file_extension(self, language: str) -> str:
-        """指定された言語に対応するファイル拡張子を返します。"""
+        """Returns the file extension for the specified language."""
         extensions = {
             'python': '.py',
             'java': '.java',

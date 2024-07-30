@@ -2,19 +2,16 @@ import anthropic
 import asyncio
 import logging
 import re
-import os
 from typing import Dict, List, Optional
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
 class CodeGenerator:
-    def __init__(self, api_key: str, tech_stack: List[str], output_dir: str):
+    def __init__(self, api_key: str, tech_stack: List[str]):
         self.api_key = api_key
         self.tech_stack = [self._normalize_language(lang) for lang in tech_stack]
         self.templates = self.load_templates()
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
-        self.output_dir = output_dir
 
     def _normalize_language(self, language: str) -> str:
         """Normalizes the language name."""
@@ -58,14 +55,6 @@ class CodeGenerator:
             },
         }
         return templates
-
-    async def generate_and_save_feature_code(self, feature: Dict[str, any], max_retries: int = 3) -> Optional[str]:
-        """Generates code for a feature and saves it to a file."""
-        code = await self.generate_feature_code(feature, max_retries)
-        if code:
-            file_path = self._save_code_to_file(feature['name'], code)
-            return file_path
-        return None
 
     async def generate_feature_code(self, feature: Dict[str, any], max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
@@ -172,21 +161,15 @@ class CodeGenerator:
         
         return None
 
-    def _save_code_to_file(self, feature_name: str, code: str) -> str:
-        """Saves the generated code to a file and returns the file path."""
-        feature_dir = os.path.join(self.output_dir, feature_name.lower().replace(' ', '_'))
-        os.makedirs(feature_dir, exist_ok=True)
-        
-        language = self._normalize_language(self.tech_stack[0])
-        file_extension = self.get_file_extension(language)
-        file_name = f"main{file_extension}"
-        file_path = os.path.join(feature_dir, file_name)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(code)
-        
-        logger.info(f"Code for feature '{feature_name}' saved to {file_path}")
-        return file_path
+    def write_code_to_file(self, file_path: str, code: str) -> None:
+        """Writes the generated code to the specified file."""
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+            logger.info(f"Code written to file: {file_path}")
+        except IOError as e:
+            logger.error(f"Error writing code to file {file_path}: {str(e)}")
+            raise
 
     def add_language_template(self, language: str, templates: Dict[str, str]) -> None:
         """
@@ -217,23 +200,22 @@ class CodeGenerator:
         normalized_language = self._normalize_language(language)
         return extensions.get(normalized_language, '.txt')
 
-    async def generate_and_save_code_for_features(self, features: List[Dict[str, any]]) -> Dict[str, Optional[str]]:
+    async def generate_code_for_features(self, features: List[Dict[str, any]]) -> Dict[str, Optional[str]]:
         """
-        Generates code for multiple features concurrently and saves them to files.
+        Generates code for multiple features concurrently.
         :param features: List of feature dictionaries
-        :return: Dictionary mapping feature names to file paths of saved code
+        :return: Dictionary mapping feature names to generated code
         """
-        async def generate_save_with_progress(feature):
-            file_path = await self.generate_and_save_feature_code(feature)
-            return feature['name'], file_path
+        async def generate_with_progress(feature):
+            return feature['name'], await self.generate_feature_code(feature)
 
-        tasks = [generate_save_with_progress(feature) for feature in features]
+        tasks = [generate_with_progress(feature) for feature in features]
         results = {}
         
-        with tqdm(total=len(features), desc="Generating and Saving Code", unit="feature") as pbar:
+        with tqdm(total=len(features), desc="Generating Code", unit="feature") as pbar:
             for future in asyncio.as_completed(tasks):
-                name, file_path = await future
-                results[name] = file_path
+                name, code = await future
+                results[name] = code
                 pbar.update(1)
         
         return results

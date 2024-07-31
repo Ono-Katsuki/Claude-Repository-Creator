@@ -57,7 +57,7 @@ class CodeGenerator:
         }
         return templates
 
-    async def generate_feature_code(self, feature: Dict[str, any], file_info: Dict[str, any], max_retries: int = 3) -> Optional[str]:
+    async def generate_feature_code(self, feature: Optional[Dict[str, any]], file_info: Dict[str, any], max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
         template = self.templates.get(language, {})
 
@@ -90,25 +90,31 @@ class CodeGenerator:
                 processed_code = self._process_code_response(response)
                 if processed_code:
                     return processed_code
-                logger.warning(f"No valid code found in response for {feature['name']} - {file_info['name']} (attempt {attempt + 1}/{max_retries})")
+                logger.warning(f"No valid code found in response for {file_info['name']} (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
-                logger.error(f"Error occurred during code generation for {feature['name']} - {file_info['name']} (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(f"Error occurred during code generation for {file_info['name']} (attempt {attempt + 1}/{max_retries}): {str(e)}")
             
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
         
-        logger.error(f"Failed to generate code for {feature['name']} - {file_info['name']} after {max_retries} attempts")
+        logger.error(f"Failed to generate code for {file_info['name']} after {max_retries} attempts")
         return None
 
-    def _create_prompt(self, feature: Dict[str, any], file_info: Dict[str, any], language: str, template: Dict[str, str]) -> str:
+    def _create_prompt(self, feature: Optional[Dict[str, any]], file_info: Dict[str, any], language: str, template: Dict[str, str]) -> str:
         """Creates the prompt for code generation."""
+        feature_info = ""
+        if feature:
+            feature_info = f"""
+            Feature Name: {feature['name']}
+            Feature Description: {feature['description']}
+            Acceptance Criteria:
+            {self._format_acceptance_criteria(feature['acceptance_criteria'])}
+            """
+        
         return f"""
-        Generate {language} code based on the following feature and file information:
+        Generate {language} code based on the following information:
 
-        Feature Name: {feature['name']}
-        Feature Description: {feature['description']}
-        Acceptance Criteria:
-        {self._format_acceptance_criteria(feature['acceptance_criteria'])}
+        {feature_info}
 
         File Information:
         Name: {file_info['name']}
@@ -124,9 +130,9 @@ class CodeGenerator:
         Please include the following in your code:
         1. Appropriate {file_info['type']} definition based on the file information
         2. All specified properties and methods
-        3. Core logic of the feature
+        3. Core logic of the feature (if applicable)
         4. Error handling (where applicable)
-        5. Comments explaining how the implementation meets the acceptance criteria
+        5. Comments explaining the implementation
 
         Ensure the generated code follows best practices for {language}.
         For HTML, provide appropriate structure; for CSS, include relevant styles.
@@ -225,14 +231,13 @@ class CodeGenerator:
         :return: Dictionary mapping feature names to generated code
         """
         async def generate_with_progress(feature, file_info):
-            return f"{feature['name']} - {file_info['name']}", await self.generate_feature_code(feature, file_info)
+            return f"{file_info['name']}", await self.generate_feature_code(feature, file_info)
 
         tasks = []
-        for feature in features:
-            feature_name = feature['name'].lower().replace(' ', '_')
-            if feature_name in folder_structure:
-                for file_info in folder_structure[feature_name].get('files', []):
-                    tasks.append(generate_with_progress(feature, file_info))
+        for folder_name, folder_content in folder_structure.items():
+            feature = next((f for f in features if f['name'].lower().replace(' ', '_') == folder_name), None)
+            for file_info in folder_content.get('files', []):
+                tasks.append(generate_with_progress(feature, file_info))
 
         results = {}
         with tqdm(total=len(tasks), desc="Generating Code", unit="file") as pbar:

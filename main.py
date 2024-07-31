@@ -191,6 +191,7 @@ class ClaudeRepoCreator:
                 logger.error(f"Missing required key in requirements: {key}")
                 raise KeyError(f"Missing required key: {key}")
         logger.debug("Requirements validation successful")
+        logger.debug(f"Validated requirements: {json.dumps(requirements, indent=2)}")
 
     async def create_repository(self, requirements, update_existing=False):
         try:
@@ -217,7 +218,7 @@ class ClaudeRepoCreator:
             
             logger.info(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} successfully in folder: {self.repo_generator.repo_folder}")
         except Exception as e:
-            logger.error(f"Error creating repository: {str(e)}")
+            logger.error(f"Error creating repository: {str(e)}", exc_info=True)
             raise
 
     async def update_existing_repository(self, requirements):
@@ -225,17 +226,20 @@ class ClaudeRepoCreator:
             logger.info("Updating existing repository structure")
             current_structure = self.repo_generator.get_current_structure()
             updated_structure = requirements['folder_structure']
+            logger.debug(f"Current structure: {json.dumps(current_structure, indent=2)}")
+            logger.debug(f"Updated structure: {json.dumps(updated_structure, indent=2)}")
             self.repo_generator.update_structure(current_structure, updated_structure)
             self.repo_generator.update_readme(requirements)
             self.repo_generator.update_gitignore(requirements['tech_stack'])
             logger.info("Existing repository updated successfully")
         except Exception as e:
-            logger.error(f"Error updating existing repository: {str(e)}")
+            logger.error(f"Error updating existing repository: {str(e)}", exc_info=True)
             raise
 
     async def create_feature_files(self, features, tech_stack, folder_structure):
         try:
             logger.info("Creating feature files")
+            logger.debug(f"Folder structure: {json.dumps(folder_structure, indent=2)}")
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
@@ -252,11 +256,12 @@ class ClaudeRepoCreator:
                     logger.info(f"Code for {file_info['name']} generated and saved to {file_path}")
                     return file_info['name'], file_path
                 except Exception as e:
-                    logger.error(f"Error processing file {file_info['name']}: {str(e)}")
+                    logger.error(f"Error processing file {file_info['name']}: {str(e)}", exc_info=True)
                     return file_info['name'], None
 
             def process_folder(folder_content, current_path):
                 logger.debug(f"Processing folder: {current_path}")
+                logger.debug(f"Folder content: {json.dumps(folder_content, indent=2)}")
                 tasks = []
                 for file_info in folder_content.get('files', []):
                     file_path = os.path.join(current_path, file_info['name'])
@@ -281,7 +286,7 @@ class ClaudeRepoCreator:
             logger.info("All files generated successfully")
             return dict(results)
         except Exception as e:
-            logger.error(f"Error creating files: {str(e)}")
+            logger.error(f"Error creating files: {str(e)}", exc_info=True)
             raise
 
     def _get_feature_for_file(self, features, file_name):
@@ -307,7 +312,7 @@ class ClaudeRepoCreator:
             
             logger.info(f"プロジェクト: {requirements['project_name']} のリポジトリが{'更新' if update_existing else '作成'}されました。フォルダ: {self.repo_generator.repo_folder}")
         except Exception as e:
-            logger.error(f"プログラム実行中にエラーが発生しました: {str(e)}")
+            logger.error(f"プログラム実行中にエラーが発生しました: {str(e)}", exc_info=True)
         finally:
             logger.info("Closing ClaudeRepoCreator")
             await self.__aexit__(None, None, None)

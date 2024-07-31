@@ -209,47 +209,60 @@ class ClaudeRepoCreator:
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            async def generate_and_test(feature, file_info, file_path):
+            async def generate_and_test(file_info, file_path, feature=None):
                 try:
                     feature_code = await code_generator.generate_feature_code(feature, file_info)
                     if feature_code is None:
-                        logger.warning(f"No code generated for {feature['name']} - {file_info['name']}")
-                        return f"{feature['name']} - {file_info['name']}", None
+                        logger.warning(f"No code generated for {file_info['name']}")
+                        return file_info['name'], None
                     
                     code_tester = CodeTester(tech_stack)
                     test_result = code_tester.test_code(feature_code)
                     
                     if test_result['success']:
                         code_generator.write_code_to_file(file_path, feature_code)
-                        logger.info(f"Code for {feature['name']} - {file_info['name']} passed tests and saved to {file_path}")
-                        return f"{feature['name']} - {file_info['name']}", file_path
+                        logger.info(f"Code for {file_info['name']} passed tests and saved to {file_path}")
+                        return file_info['name'], file_path
                     else:
-                        logger.error(f"Generated code for {feature['name']} - {file_info['name']} contains errors: {test_result['message']}")
-                        self.show_error_message(f"Error in {feature['name']} - {file_info['name']}: {test_result['message']}")
-                        return f"{feature['name']} - {file_info['name']}", None
+                        logger.error(f"Generated code for {file_info['name']} contains errors: {test_result['message']}")
+                        self.show_error_message(f"Error in {file_info['name']}: {test_result['message']}")
+                        return file_info['name'], None
                 except Exception as e:
-                    logger.error(f"Error processing feature {feature['name']} - {file_info['name']}: {str(e)}")
-                    return f"{feature['name']} - {file_info['name']}", None
+                    logger.error(f"Error processing file {file_info['name']}: {str(e)}")
+                    return file_info['name'], None
 
-            tasks = []
-            for feature in features:
-                feature_name = feature['name'].lower().replace(' ', '_')
-                if feature_name in folder_structure:
-                    for file_info in folder_structure[feature_name].get('files', []):
-                        file_path = os.path.join(self.repo_generator.repo_folder, feature_name, file_info['name'])
-                        tasks.append(generate_and_test(feature, file_info, file_path))
-                else:
-                    logger.warning(f"No matching folder found for feature: {feature['name']}")
+            def process_folder(folder_name, folder_content, current_path):
+                tasks = []
+                for file_info in folder_content.get('files', []):
+                    file_path = os.path.join(current_path, file_info['name'])
+                    feature = self._get_feature_for_file(features, file_info['name'])
+                    tasks.append(generate_and_test(file_info, file_path, feature))
+                
+                for subfolder_name, subfolder_content in folder_content.get('subfolders', {}).items():
+                    subfolder_path = os.path.join(current_path, subfolder_name)
+                    os.makedirs(subfolder_path, exist_ok=True)
+                    tasks.extend(process_folder(subfolder_name, subfolder_content, subfolder_path))
+                
+                return tasks
+
+            tasks = process_folder(self.repo_generator.repo_folder, folder_structure, self.repo_generator.repo_folder)
 
             results = []
-            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Features"):
+            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
                 result = await future
                 results.append(result)
             
             return dict(results)
         except Exception as e:
-            logger.error(f"Error creating feature files: {str(e)}")
+            logger.error(f"Error creating files: {str(e)}")
             raise
+
+    def _get_feature_for_file(self, features, file_name):
+        for feature in features:
+            feature_name = feature['name'].lower().replace(' ', '_')
+            if file_name.startswith(feature_name):
+                return feature
+        return None
 
     def show_error_message(self, message):
         print(f"Error: {message}")

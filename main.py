@@ -231,7 +231,7 @@ class ClaudeRepoCreator:
                     logger.error(f"Error processing file {file_info['name']}: {str(e)}")
                     return file_info['name'], None
 
-            def process_folder(folder_name, folder_content, current_path):
+            def process_folder(folder_content, current_path):
                 tasks = []
                 for file_info in folder_content.get('files', []):
                     file_path = os.path.join(current_path, file_info['name'])
@@ -241,11 +241,11 @@ class ClaudeRepoCreator:
                 for subfolder_name, subfolder_content in folder_content.get('subfolders', {}).items():
                     subfolder_path = os.path.join(current_path, subfolder_name)
                     os.makedirs(subfolder_path, exist_ok=True)
-                    tasks.extend(process_folder(subfolder_name, subfolder_content, subfolder_path))
+                    tasks.extend(process_folder(subfolder_content, subfolder_path))
                 
                 return tasks
 
-            tasks = process_folder(self.repo_generator.repo_folder, folder_structure, self.repo_generator.repo_folder)
+            tasks = process_folder(folder_structure, self.repo_generator.repo_folder)
 
             results = []
             for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
@@ -260,7 +260,7 @@ class ClaudeRepoCreator:
     def _get_feature_for_file(self, features, file_name):
         for feature in features:
             feature_name = feature['name'].lower().replace(' ', '_')
-            if file_name.startswith(feature_name):
+            if file_name.lower().startswith(feature_name):
                 return feature
         return None
 

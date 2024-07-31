@@ -239,7 +239,7 @@ class ClaudeRepoCreator:
     async def create_feature_files(self, features, tech_stack, folder_structure):
         try:
             logger.info("Creating feature files")
-            logger.debug(f"Folder structure: {json.dumps(folder_structure, indent=2)}")
+            logger.info(f"Folder structure: {json.dumps(folder_structure, indent=2)}")  # 1. フォルダ構造のログ
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
@@ -260,8 +260,8 @@ class ClaudeRepoCreator:
                     return file_info['name'], None
 
             def process_folder(folder_content, current_path):
-                logger.debug(f"Processing folder: {current_path}")
-                logger.debug(f"Folder content: {json.dumps(folder_content, indent=2)}")
+                logger.info(f"Processing folder: {current_path}")  # 2. フォルダ処理のログ
+                logger.info(f"Folder content: {json.dumps(folder_content, indent=2)}")  # 2. フォルダ内容のログ
                 tasks = []
                 for file_info in folder_content.get('files', []):
                     file_path = os.path.join(current_path, file_info['name'])
@@ -284,6 +284,7 @@ class ClaudeRepoCreator:
                 results.append(result)
             
             logger.info("All files generated successfully")
+            logger.info(f"Generated files: {json.dumps(dict(results), indent=2)}")  # 4. 生成されたファイルのリストのログ
             return dict(results)
         except Exception as e:
             logger.error(f"Error creating files: {str(e)}", exc_info=True)

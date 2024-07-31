@@ -32,7 +32,7 @@ class ClaudeRepoCreator:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.claude_client:
-            await self.claude_client.close()  # Changed from aclose() to close()
+            await self.claude_client.close()
 
     def load_config(self):
         config_manager = ConfigManager()
@@ -141,7 +141,22 @@ class ClaudeRepoCreator:
             "folder_structure": {{
                 "folder_name": {{
                     "subfolders": {{}},
-                    "files": ["string"]
+                    "files": [
+                        {{
+                            "name": "string",
+                            "type": "class|function|component",
+                            "description": "string",
+                            "properties": ["string"],
+                            "methods": [
+                                {{
+                                    "name": "string",
+                                    "params": ["string"],
+                                    "return_type": "string",
+                                    "description": "string"
+                                }}
+                            ]
+                        }}
+                    ]
                 }}
             }}
         }}
@@ -165,7 +180,7 @@ class ClaudeRepoCreator:
                 self.repo_generator.create_readme(requirements)
                 self.repo_generator.create_gitignore(requirements['tech_stack'])
             
-            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'])
+            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'], requirements['folder_structure'])
             
             self.vc_system.initialize(self.repo_generator.repo_folder)
             self.vc_system.add_all()
@@ -187,36 +202,44 @@ class ClaudeRepoCreator:
             logger.error(f"Error updating existing repository: {str(e)}")
             raise
 
-    async def create_feature_files(self, features, tech_stack):
+    async def create_feature_files(self, features, tech_stack, folder_structure):
         try:
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            async def generate_and_test(feature):
+            async def generate_and_test(feature, file_info, file_path):
                 try:
-                    feature_code = await code_generator.generate_feature_code(feature)
+                    feature_code = await code_generator.generate_feature_code(feature, file_info)
                     if feature_code is None:
-                        logger.warning(f"No code generated for {feature['name']}")
-                        return feature['name'], None
+                        logger.warning(f"No code generated for {feature['name']} - {file_info['name']}")
+                        return f"{feature['name']} - {file_info['name']}", None
                     
                     code_tester = CodeTester(tech_stack)
                     test_result = code_tester.test_code(feature_code)
                     
                     if test_result['success']:
-                        edited_code = self.show_code_editor(feature['name'], feature_code)
-                        self.repo_generator.create_feature_files(feature['name'], edited_code, tech_stack)
-                        return feature['name'], edited_code
+                        code_generator.write_code_to_file(file_path, feature_code)
+                        logger.info(f"Code for {feature['name']} - {file_info['name']} passed tests and saved to {file_path}")
+                        return f"{feature['name']} - {file_info['name']}", file_path
                     else:
-                        logger.error(f"Generated code for {feature['name']} contains errors: {test_result['message']}")
-                        self.show_error_message(f"Error in {feature['name']}: {test_result['message']}")
-                        return feature['name'], None
+                        logger.error(f"Generated code for {feature['name']} - {file_info['name']} contains errors: {test_result['message']}")
+                        self.show_error_message(f"Error in {feature['name']} - {file_info['name']}: {test_result['message']}")
+                        return f"{feature['name']} - {file_info['name']}", None
                 except Exception as e:
-                    logger.error(f"Error processing feature {feature['name']}: {str(e)}")
-                    return feature['name'], None
+                    logger.error(f"Error processing feature {feature['name']} - {file_info['name']}: {str(e)}")
+                    return f"{feature['name']} - {file_info['name']}", None
 
-            tasks = [generate_and_test(feature) for feature in features]
+            tasks = []
+            for feature in features:
+                feature_name = feature['name'].lower().replace(' ', '_')
+                if feature_name in folder_structure:
+                    for file_info in folder_structure[feature_name].get('files', []):
+                        file_path = os.path.join(self.repo_generator.repo_folder, feature_name, file_info['name'])
+                        tasks.append(generate_and_test(feature, file_info, file_path))
+                else:
+                    logger.warning(f"No matching folder found for feature: {feature['name']}")
+
             results = []
-            
             for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Features"):
                 result = await future
                 results.append(result)
@@ -225,27 +248,6 @@ class ClaudeRepoCreator:
         except Exception as e:
             logger.error(f"Error creating feature files: {str(e)}")
             raise
-
-    def show_code_editor(self, feature_name, code):
-        print(f"\n--- Code for {feature_name} ---\n")
-        print(code)
-        print("\n--- End of code ---\n")
-        
-        while True:
-            choice = input("Do you want to edit this code? (y/n): ").lower()
-            if choice == 'y':
-                print("Enter the new code below. Type 'END' on a new line when you're finished:")
-                new_code_lines = []
-                while True:
-                    line = input()
-                    if line.strip().upper() == 'END':
-                        break
-                    new_code_lines.append(line)
-                return '\n'.join(new_code_lines)
-            elif choice == 'n':
-                return code
-            else:
-                print("Invalid choice. Please enter 'y' or 'n'.")
 
     def show_error_message(self, message):
         print(f"Error: {message}")

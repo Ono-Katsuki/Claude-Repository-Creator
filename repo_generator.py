@@ -97,8 +97,13 @@ class RepoGenerator:
             folder_path = os.path.join(base_path, folder)
             os.makedirs(folder_path, exist_ok=True)
             
-            for file in contents.get("files", []):
-                open(os.path.join(folder_path, file), 'w').close()
+            for file_info in contents.get("files", []):
+                file_path = os.path.join(folder_path, file_info['name'])
+                with open(file_path, 'w') as f:
+                    f.write(f"# TODO: Implement {file_info['name']}\n")
+                    f.write(f"# Type: {file_info['type']}\n")
+                    f.write(f"# Description: {file_info['description']}\n")
+                logger.info(f"ファイルを作成しました: {file_path}")
             
             self.create_structure(contents.get("subfolders", {}), folder_path)
 
@@ -106,7 +111,7 @@ class RepoGenerator:
         """プロジェクト情報を含むREADME.mdファイルを作成します。"""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
-            with open(readme_path, "w") as f:
+            with open(readme_path, "w", encoding='utf-8') as f:
                 f.write(f"# {requirements['project_name']}\n\n")
                 f.write(f"{requirements['description']}\n\n")
                 f.write("## 機能\n\n")
@@ -125,7 +130,7 @@ class RepoGenerator:
         """技術スタックに基づいて.gitignoreファイルを作成します。"""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
-            with open(gitignore_path, "w") as f:
+            with open(gitignore_path, "w", encoding='utf-8') as f:
                 for tech in tech_stack:
                     tech_lower = self._normalize_language(tech)
                     if tech_lower in self.gitignore_templates:
@@ -155,7 +160,7 @@ class RepoGenerator:
             else:
                 if "files" not in structure:
                     structure["files"] = []
-                structure["files"].append(item)
+                structure["files"].append({"name": item, "type": "file", "description": "Auto-generated file"})
         return structure
 
     def update_structure(self, current_structure, updated_structure, base_path=None):
@@ -167,10 +172,13 @@ class RepoGenerator:
                 os.makedirs(folder_path, exist_ok=True)
                 logger.info(f"新しいフォルダを作成しました: {folder_path}")
             
-            for file in contents.get("files", []):
-                file_path = os.path.join(folder_path, file)
+            for file_info in contents.get("files", []):
+                file_path = os.path.join(folder_path, file_info['name'])
                 if not os.path.exists(file_path):
-                    open(file_path, 'w').close()
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(f"# TODO: Implement {file_info['name']}\n")
+                        f.write(f"# Type: {file_info['type']}\n")
+                        f.write(f"# Description: {file_info['description']}\n")
                     logger.info(f"新しいファイルを作成しました: {file_path}")
             
             self.update_structure(
@@ -193,7 +201,7 @@ class RepoGenerator:
             if not os.path.exists(readme_path):
                 return self.create_readme(requirements)
             
-            with open(readme_path, "r+") as f:
+            with open(readme_path, "r+", encoding='utf-8') as f:
                 content = f.read()
                 f.seek(0)
                 f.write(f"# {requirements['project_name']}\n\n")
@@ -219,7 +227,7 @@ class RepoGenerator:
             if not os.path.exists(gitignore_path):
                 return self.create_gitignore(tech_stack)
             
-            with open(gitignore_path, "r+") as f:
+            with open(gitignore_path, "r+", encoding='utf-8') as f:
                 content = f.read()
                 f.seek(0)
                 for tech in tech_stack:
@@ -238,26 +246,6 @@ class RepoGenerator:
             logger.info(".gitignoreが正常に更新されました。")
         except IOError as e:
             logger.error(f".gitignoreの更新中にエラーが発生しました: {str(e)}")
-
-    def create_feature_files(self, feature_name, feature_code, tech_stack):
-        """適切なディレクトリに機能ファイルを作成します"""
-        try:
-            feature_dir = os.path.join(self.repo_folder, "src", "features", feature_name.lower().replace(' ', '_'))
-            os.makedirs(feature_dir, exist_ok=True)
-            
-            language = self._normalize_language(tech_stack[0])
-            file_extension = self._get_file_extension(language)
-            main_file = os.path.join(feature_dir, f"main{file_extension}")
-            with open(main_file, 'w') as f:
-                f.write(feature_code)
-            
-            test_file = os.path.join(feature_dir, f"test{file_extension}")
-            with open(test_file, 'w') as f:
-                f.write(f"# TODO: {feature_name}のテストを実装する")
-            
-            logger.info(f"{feature_name}の機能ファイルが作成されました")
-        except IOError as e:
-            logger.error(f"{feature_name}の機能ファイル作成中にエラーが発生しました: {str(e)}")
 
     def _get_file_extension(self, language):
         extensions = {

@@ -11,7 +11,6 @@ from config_manager import ConfigManager
 from cache_manager import CacheManager
 from version_control import VersionControlFactory
 from code_generator import CodeGenerator
-from code_tester import CodeTester
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -182,7 +181,7 @@ class ClaudeRepoCreator:
                 self.repo_generator.create_readme(requirements)
                 self.repo_generator.create_gitignore(requirements['tech_stack'])
             
-            feature_results = await self.create_feature_files(requirements['features'], requirements['tech_stack'], requirements['folder_structure'])
+            await self.create_feature_files(requirements['features'], requirements['tech_stack'], requirements['folder_structure'])
             
             self.vc_system.initialize(self.repo_generator.repo_folder)
             self.vc_system.add_all()
@@ -209,24 +208,16 @@ class ClaudeRepoCreator:
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
-            async def generate_and_test(file_info, file_path, feature=None):
+            async def generate_code(file_info, file_path, feature=None):
                 try:
                     feature_code = await code_generator.generate_feature_code(feature, file_info)
                     if feature_code is None:
                         logger.warning(f"No code generated for {file_info['name']}")
                         return file_info['name'], None
                     
-                    code_tester = CodeTester(tech_stack)
-                    test_result = code_tester.test_code(feature_code)
-                    
-                    if test_result['success']:
-                        code_generator.write_code_to_file(file_path, feature_code)
-                        logger.info(f"Code for {file_info['name']} passed tests and saved to {file_path}")
-                        return file_info['name'], file_path
-                    else:
-                        logger.error(f"Generated code for {file_info['name']} contains errors: {test_result['message']}")
-                        self.show_error_message(f"Error in {file_info['name']}: {test_result['message']}")
-                        return file_info['name'], None
+                    code_generator.write_code_to_file(file_path, feature_code)
+                    logger.info(f"Code for {file_info['name']} generated and saved to {file_path}")
+                    return file_info['name'], file_path
                 except Exception as e:
                     logger.error(f"Error processing file {file_info['name']}: {str(e)}")
                     return file_info['name'], None
@@ -236,7 +227,7 @@ class ClaudeRepoCreator:
                 for file_info in folder_content.get('files', []):
                     file_path = os.path.join(current_path, file_info['name'])
                     feature = self._get_feature_for_file(features, file_info['name'])
-                    tasks.append(generate_and_test(file_info, file_path, feature))
+                    tasks.append(generate_code(file_info, file_path, feature))
                 
                 for subfolder_name, subfolder_content in folder_content.get('subfolders', {}).items():
                     subfolder_path = os.path.join(current_path, subfolder_name)
@@ -263,9 +254,6 @@ class ClaudeRepoCreator:
             if file_name.lower().startswith(feature_name):
                 return feature
         return None
-
-    def show_error_message(self, message):
-        print(f"Error: {message}")
 
     async def run(self):
         try:

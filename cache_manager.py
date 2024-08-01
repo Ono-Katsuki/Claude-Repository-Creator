@@ -1,5 +1,6 @@
 import json
 import time
+import os
 
 class CacheManager:
     def __init__(self, cache_file='cache.json'):
@@ -14,6 +15,7 @@ class CacheManager:
             return {}
 
     def save_cache(self):
+        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
         with open(self.cache_file, 'w') as f:
             json.dump(self.cache, f)
 

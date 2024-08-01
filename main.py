@@ -68,8 +68,11 @@ class ClaudeRepoCreator:
         self.initialize_claude_client()
         cache_key = f"requirements_{hash(project_description)}"
         cached_requirements = self.cache_manager.get(cache_key)
+        
         if cached_requirements:
-            return cached_requirements
+            improved_requirements = await self.evaluate_and_improve_requirements(cached_requirements, project_description)
+            self.cache_manager.set(cache_key, improved_requirements)
+            return improved_requirements
 
         prompt = self.create_requirements_prompt(project_description)
         max_retries = 3
@@ -99,8 +102,9 @@ class ClaudeRepoCreator:
                     json_str = json_match.group()
                     requirements = json.loads(json_str)
                     self.validate_requirements(requirements)
-                    self.cache_manager.set(cache_key, requirements)
-                    return requirements
+                    improved_requirements = await self.evaluate_and_improve_requirements(requirements, project_description)
+                    self.cache_manager.set(cache_key, improved_requirements)
+                    return improved_requirements
                 else:
                     raise ValueError("No JSON found in the response")
             except json.JSONDecodeError as e:
@@ -116,6 +120,56 @@ class ClaudeRepoCreator:
                 else:
                     raise
 
+    async def evaluate_and_improve_requirements(self, requirements, project_description):
+        prompt = f"""
+        Evaluate and improve the following project requirements:
+        Provide the improved requirements in the same JSON format as the input.
+        
+        Project Description:
+        {project_description}
+
+        Current Requirements:
+        {json.dumps(requirements, indent=2)}
+
+        Please analyze these requirements and make the following improvements:
+        1. Ensure there is a main file (e.g., main.py, index.js) in the appropriate location.
+        2. Check that all necessary dependencies are included.
+        3. Verify that the folder structure is logical and follows best practices for the chosen tech stack.
+        4. Make sure all function and method calls are correct and consistent.
+        5. Add any missing critical components for the project to function properly.
+        6. Ensure the tech stack is appropriate for the project description.
+        7. Verify that all features have clear and testable acceptance criteria.
+
+        """
+
+        message = await self.claude_client.messages.create(
+            model="claude-3-5-sonnet-20240620",
+            max_tokens=4096,
+            temperature=0,
+            system="You are an AI assistant specialized in software development and repository creation. Provide detailed and structured responses.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        )
+        response = message.content[0].text
+        
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+            improved_requirements = json.loads(json_str)
+            self.validate_requirements(improved_requirements)
+            return improved_requirements
+        else:
+            raise ValueError("No JSON found in the improved requirements response")
+
     def create_requirements_prompt(self, project_description):
         return f"""
         Based on the following project description, create a detailed requirements definition:
@@ -130,6 +184,7 @@ class ClaudeRepoCreator:
         Ensure that ALL fields are properly filled and that there are NO empty arrays or objects.
         Include at least one item in each array (features, tech_stack, files, etc.).
         For the folder structure, provide a realistic and comprehensive structure that reflects the project's complexity.
+        Include a main file (e.g., main.py, index.js) in the appropriate location.
 
         Provide the requirements in the following JSON format:
         {{

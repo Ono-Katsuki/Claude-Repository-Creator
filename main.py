@@ -22,7 +22,7 @@ class ClaudeRepoCreator:
         self.repo_generator = RepoGenerator()
         self.projects_folder = os.path.join(os.getcwd(), "claude_projects")
         self.current_project_folder = None
-        self.cache_manager = None
+        self.cache_manager = CacheManager(os.path.join(self.projects_folder, 'global_cache.json'))
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
         self.debug_mode = debug_mode
         if self.debug_mode:
@@ -267,6 +267,8 @@ class ClaudeRepoCreator:
         try:
             project_description = input("Enter the project description: ")
             requirements = await self.generate_requirements(project_description)
+            
+            self.create_project_folder(requirements['project_name'])
             
             update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
             await self.create_repository(requirements, update_existing)

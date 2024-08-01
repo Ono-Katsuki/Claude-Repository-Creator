@@ -20,7 +20,9 @@ class ClaudeRepoCreator:
         self.config = self.load_config()
         self.claude_client = None
         self.repo_generator = RepoGenerator()
-        self.cache_manager = CacheManager()
+        self.projects_folder = os.path.join(os.getcwd(), "claude_projects")
+        self.current_project_folder = None
+        self.cache_manager = None
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
         self.debug_mode = debug_mode
         if self.debug_mode:
@@ -54,6 +56,13 @@ class ClaudeRepoCreator:
     def initialize_claude_client(self):
         if not self.claude_client:
             self.claude_client = anthropic.AsyncAnthropic(api_key=self.config['api_key'])
+
+    def create_project_folder(self, project_name):
+        os.makedirs(self.projects_folder, exist_ok=True)
+        self.current_project_folder = os.path.join(self.projects_folder, project_name)
+        os.makedirs(self.current_project_folder, exist_ok=True)
+        self.cache_manager = CacheManager(os.path.join(self.current_project_folder, 'cache.json'))
+        logger.info(f"Created project folder: {self.current_project_folder}")
 
     async def generate_requirements(self, project_description):
         self.initialize_claude_client()
@@ -167,7 +176,8 @@ class ClaudeRepoCreator:
     async def create_repository(self, requirements, update_existing=False):
         try:
             project_name = requirements['project_name']
-            self.repo_generator.create_repo_folder(project_name)
+            self.create_project_folder(project_name)
+            self.repo_generator.create_repo_folder(self.current_project_folder)
             
             if update_existing:
                 await self.update_existing_repository(requirements)

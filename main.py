@@ -266,6 +266,7 @@ class ClaudeRepoCreator:
                 tasks = []
                 logger.info(f"Initial tasks list: {tasks}")
     
+                # ファイルの処理
                 files = folder_content.get('files', [])
                 logger.info(f"Files to process in {current_path}: {[f['name'] for f in files]}")
     
@@ -282,6 +283,7 @@ class ClaudeRepoCreator:
     
                 logger.info(f"Tasks after processing files: {len(tasks)}")
     
+                # サブフォルダの処理
                 subfolders = folder_content.get('subfolders', {})
                 logger.info(f"Subfolders to process in {current_path}: {list(subfolders.keys())}")
     
@@ -295,26 +297,11 @@ class ClaudeRepoCreator:
                     subfolder_tasks = process_folder(subfolder_content, subfolder_path)
                     logger.info(f"Tasks returned from {subfolder_name}: {len(subfolder_tasks)}")
         
-                    logger.info(f"Extending tasks with subfolder tasks from {subfolder_name}")
                     tasks.extend(subfolder_tasks)
     
                 logger.info(f"Total tasks after processing {current_path}: {len(tasks)}")
                 return tasks
-                
-            tasks = process_folder(folder_structure, self.repo_generator.repo_folder)
 
-            logger.info(f"Starting to generate {len(tasks)} files")
-            results = []
-            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
-                result = await future
-                results.append(result)
-            
-            logger.info("All files generated successfully")
-            logger.info(f"Generated files: {json.dumps(dict(results), indent=2)}")  # 4. 生成されたファイルのリストのログ
-            return dict(results)
-        except Exception as e:
-            logger.error(f"Error creating files: {str(e)}", exc_info=True)
-            raise
 
     def _get_feature_for_file(self, features, file_name):
         logger.debug(f"Getting feature for file: {file_name}")

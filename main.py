@@ -22,7 +22,9 @@ class ClaudeRepoCreator:
         self.repo_generator = RepoGenerator()
         self.projects_folder = os.path.join(os.getcwd(), "claude_projects")
         self.current_project_folder = None
-        self.cache_manager = CacheManager(os.path.join(self.projects_folder, 'global_cache.json'))
+        self.cache_folder = os.path.join(self.projects_folder, "information_management", "cache")
+        self.create_cache_structure()
+        self.cache_manager = CacheManager(os.path.join(self.cache_folder, 'global_cache.json'))
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
         self.debug_mode = debug_mode
         if self.debug_mode:
@@ -57,12 +59,26 @@ class ClaudeRepoCreator:
         if not self.claude_client:
             self.claude_client = anthropic.AsyncAnthropic(api_key=self.config['api_key'])
 
+    def create_cache_structure(self):
+        os.makedirs(self.cache_folder, exist_ok=True)
+        global_cache_path = os.path.join(self.cache_folder, 'global_cache.json')
+        if not os.path.exists(global_cache_path):
+            with open(global_cache_path, 'w') as f:
+                json.dump({}, f)
+
     def create_project_folder(self, project_name):
         os.makedirs(self.projects_folder, exist_ok=True)
         self.current_project_folder = os.path.join(self.projects_folder, project_name)
         os.makedirs(self.current_project_folder, exist_ok=True)
-        self.cache_manager = CacheManager(os.path.join(self.current_project_folder, 'cache.json'))
+        
+        project_cache_path = os.path.join(self.cache_folder, f'{project_name}_cache.json')
+        if not os.path.exists(project_cache_path):
+            with open(project_cache_path, 'w') as f:
+                json.dump({}, f)
+        
+        self.cache_manager = CacheManager(project_cache_path)
         logger.info(f"Created project folder: {self.current_project_folder}")
+        logger.info(f"Created project cache: {project_cache_path}")
 
     async def generate_requirements(self, project_description):
         self.initialize_claude_client()

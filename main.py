@@ -302,6 +302,20 @@ class ClaudeRepoCreator:
                 logger.info(f"Total tasks after processing {current_path}: {len(tasks)}")
                 return tasks
 
+             tasks = process_folder(folder_structure, self.repo_generator.repo_folder)
+
+             logger.info(f"Starting to generate {len(tasks)} files")
+             results = []
+             for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
+                 result = await future
+                 results.append(result)
+
+             logger.info("All files generated successfully")
+             logger.info(f"Generated files: {json.dumps(dict(results), indent=2)}")  # 4. 生成されたファイルのリストのログ
+             return dict(results)
+         except Exception as e:
+             logger.error(f"Error creating files: {str(e)}", exc_info=True)
+             raise
 
     def _get_feature_for_file(self, features, file_name):
         logger.debug(f"Getting feature for file: {file_name}")

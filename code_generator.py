@@ -138,10 +138,10 @@ class CodeGenerator:
         For HTML, provide appropriate structure; for CSS, include relevant styles.
         For React, include state management and lifecycle methods as necessary.
 
-        Please output the code in a markdown code block, using the appropriate language identifier.
+        Please output the code in a markdown code block.
         For example:
 
-        ```{language}
+        ```
         // Your code here
         ```
 
@@ -157,7 +157,7 @@ class CodeGenerator:
         Include appropriate comments to explain important parts or complex logic when necessary.
         Always consider security, performance, and scalability in your implementation.
         Aim for production-ready quality in the generated code.
-        Remember to output the code in a markdown code block with the appropriate language identifier.
+        Remember to output the code in a markdown code block.
         """
 
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:

@@ -260,21 +260,47 @@ class ClaudeRepoCreator:
                     return file_info['name'], None
 
             def process_folder(folder_content, current_path):
-                logger.info(f"Processing folder: {current_path}")  # 2. フォルダ処理のログ
-                logger.info(f"Folder content: {json.dumps(folder_content, indent=2)}")  # 2. フォルダ内容のログ
+                logger.info(f"Starting to process folder: {current_path}")
+                logger.info(f"Folder content: {json.dumps(folder_content, indent=2)}")
+    
                 tasks = []
-                for file_info in folder_content.get('files', []):
+                logger.info(f"Initial tasks list: {tasks}")
+    
+                files = folder_content.get('files', [])
+                logger.info(f"Files to process in {current_path}: {[f['name'] for f in files]}")
+    
+                for file_info in files:
+                    logger.info(f"Processing file: {file_info['name']}")
                     file_path = os.path.join(current_path, file_info['name'])
+                    logger.info(f"Full file path: {file_path}")
+        
                     feature = self._get_feature_for_file(features, file_info['name'])
+                    logger.info(f"Feature for file {file_info['name']}: {feature['name'] if feature else 'None'}")
+        
+                    logger.info(f"Appending generate_code task for {file_info['name']}")
                     tasks.append(generate_code(file_info, file_path, feature))
-                
-                for subfolder_name, subfolder_content in folder_content.get('subfolders', {}).items():
+    
+                logger.info(f"Tasks after processing files: {len(tasks)}")
+    
+                subfolders = folder_content.get('subfolders', {})
+                logger.info(f"Subfolders to process in {current_path}: {list(subfolders.keys())}")
+    
+                for subfolder_name, subfolder_content in subfolders.items():
+                    logger.info(f"Processing subfolder: {subfolder_name}")
                     subfolder_path = os.path.join(current_path, subfolder_name)
+                    logger.info(f"Creating subfolder: {subfolder_path}")
                     os.makedirs(subfolder_path, exist_ok=True)
-                    tasks.extend(process_folder(subfolder_content, subfolder_path))
-                
+        
+                    logger.info(f"Recursively calling process_folder for {subfolder_name}")
+                    subfolder_tasks = process_folder(subfolder_content, subfolder_path)
+                    logger.info(f"Tasks returned from {subfolder_name}: {len(subfolder_tasks)}")
+        
+                    logger.info(f"Extending tasks with subfolder tasks from {subfolder_name}")
+                    tasks.extend(subfolder_tasks)
+    
+                logger.info(f"Total tasks after processing {current_path}: {len(tasks)}")
                 return tasks
-
+                
             tasks = process_folder(folder_structure, self.repo_generator.repo_folder)
 
             logger.info(f"Starting to generate {len(tasks)} files")

@@ -117,6 +117,10 @@ class ClaudeRepoCreator:
         ["python", "javascript", "java", "react", "react native", "html", "css", "ruby"]
 
         Make sure to use the full filename with its extension for the "name" field within "files".
+        
+        Ensure that ALL fields are properly filled and that there are NO empty arrays or objects.
+        Include at least one item in each array (features, tech_stack, files, etc.).
+        For the folder structure, provide a realistic and comprehensive structure that reflects the project's complexity.
 
         Provide the requirements in the following JSON format:
         {{

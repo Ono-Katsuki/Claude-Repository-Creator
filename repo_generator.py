@@ -76,7 +76,7 @@ class RepoGenerator:
         self.repo_folder = None
 
     def _normalize_language(self, language: str) -> str:
-        """言語名を正規化します。"""
+        """Normalizes the language name."""
         language = language.lower()
         if language in ['react', 'react.js', 'reactjs']:
             return 'react'
@@ -85,13 +85,13 @@ class RepoGenerator:
         return language
 
     def create_repo_folder(self, project_name):
-        """リポジトリ用の新しいフォルダを作成します"""
+        """Creates a new folder for the repository"""
         self.repo_folder = os.path.join(os.getcwd(), project_name)
         os.makedirs(self.repo_folder, exist_ok=True)
-        logger.info(f"新しいリポジトリフォルダを作成しました: {self.repo_folder}")
+        logger.info(f"Created new repository folder: {self.repo_folder}")
 
     def create_structure(self, structure, base_path=None):
-        """フォルダ構造とファイルを作成します。"""
+        """Creates folder structure and files."""
         base_path = base_path or self.repo_folder
         for folder, contents in structure.items():
             folder_path = os.path.join(base_path, folder)
@@ -103,51 +103,51 @@ class RepoGenerator:
                     f.write(f"# TODO: Implement {file_info['name']}\n")
                     f.write(f"# Type: {file_info['type']}\n")
                     f.write(f"# Description: {file_info['description']}\n")
-                logger.info(f"ファイルを作成しました: {file_path}")
+                logger.info(f"Created file: {file_path}")
             
             self.create_structure(contents.get("subfolders", {}), folder_path)
 
     def create_readme(self, requirements):
-        """プロジェクト情報を含むREADME.mdファイルを作成します。"""
+        """Creates a README.md file with project information."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
             with open(readme_path, "w", encoding='utf-8') as f:
                 f.write(f"# {requirements['project_name']}\n\n")
                 f.write(f"{requirements['description']}\n\n")
-                f.write("## 機能\n\n")
+                f.write("## Features\n\n")
                 for feature in requirements['features']:
                     f.write(f"### {feature['name']}\n")
                     f.write(f"{feature['description']}\n\n")
-                    f.write("受け入れ基準:\n")
+                    f.write("Acceptance Criteria:\n")
                     for criteria in feature['acceptance_criteria']:
                         f.write(f"- {criteria}\n")
                     f.write("\n")
-            logger.info("README.mdが正常に作成されました。")
+            logger.info("README.md created successfully.")
         except IOError as e:
-            logger.error(f"README.mdの作成中にエラーが発生しました: {str(e)}")
+            logger.error(f"Error occurred while creating README.md: {str(e)}")
 
     def create_gitignore(self, tech_stack):
-        """技術スタックに基づいて.gitignoreファイルを作成します。"""
+        """Creates a .gitignore file based on the technology stack."""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
             with open(gitignore_path, "w", encoding='utf-8') as f:
                 for tech in tech_stack:
                     tech_lower = self._normalize_language(tech)
                     if tech_lower in self.gitignore_templates:
-                        f.write(f"# {tech}固有の無視パターン\n")
+                        f.write(f"# {tech}-specific ignore patterns\n")
                         for pattern in self.gitignore_templates[tech_lower]:
                             f.write(f"{pattern}\n")
                         f.write("\n")
-                f.write("# 一般的な無視パターン\n")
+                f.write("# General ignore patterns\n")
                 f.write(".DS_Store\n")
                 f.write(".idea/\n")
                 f.write(".vscode/\n")
-            logger.info(".gitignoreが正常に作成されました。")
+            logger.info(".gitignore created successfully.")
         except IOError as e:
-            logger.error(f".gitignoreの作成中にエラーが発生しました: {str(e)}")
+            logger.error(f"Error occurred while creating .gitignore: {str(e)}")
 
     def get_current_structure(self, base_path=None):
-        """現在のフォルダ構造を再帰的に取得します。"""
+        """Recursively gets the current folder structure."""
         base_path = base_path or self.repo_folder
         structure = {}
         for item in os.listdir(base_path):
@@ -164,13 +164,13 @@ class RepoGenerator:
         return structure
 
     def update_structure(self, current_structure, updated_structure, base_path=None):
-        """更新された構造に基づいて既存の構造を更新します。"""
+        """Updates the existing structure based on the updated structure."""
         base_path = base_path or self.repo_folder
         for folder, contents in updated_structure.items():
             folder_path = os.path.join(base_path, folder)
             if folder not in current_structure:
                 os.makedirs(folder_path, exist_ok=True)
-                logger.info(f"新しいフォルダを作成しました: {folder_path}")
+                logger.info(f"Created new folder: {folder_path}")
             
             for file_info in contents.get("files", []):
                 file_path = os.path.join(folder_path, file_info['name'])
@@ -179,7 +179,7 @@ class RepoGenerator:
                         f.write(f"# TODO: Implement {file_info['name']}\n")
                         f.write(f"# Type: {file_info['type']}\n")
                         f.write(f"# Description: {file_info['description']}\n")
-                    logger.info(f"新しいファイルを作成しました: {file_path}")
+                    logger.info(f"Created new file: {file_path}")
             
             self.update_structure(
                 current_structure.get(folder, {}).get("subfolders", {}),
@@ -187,15 +187,15 @@ class RepoGenerator:
                 folder_path
             )
         
-        # 更新された構造にないフォルダとファイルを削除
+        # Remove folders and files not in the updated structure
         for folder in current_structure:
             if folder not in updated_structure:
                 folder_path = os.path.join(base_path, folder)
                 shutil.rmtree(folder_path)
-                logger.info(f"フォルダを削除しました: {folder_path}")
+                logger.info(f"Removed folder: {folder_path}")
 
     def update_readme(self, requirements):
-        """既存のREADME.mdファイルを更新します。"""
+        """Updates the existing README.md file."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
             if not os.path.exists(readme_path):
@@ -206,22 +206,22 @@ class RepoGenerator:
                 f.seek(0)
                 f.write(f"# {requirements['project_name']}\n\n")
                 f.write(f"{requirements['description']}\n\n")
-                f.write("## 機能\n\n")
+                f.write("## Features\n\n")
                 for feature in requirements['features']:
                     f.write(f"### {feature['name']}\n")
                     f.write(f"{feature['description']}\n\n")
-                    f.write("受け入れ基準:\n")
+                    f.write("Acceptance Criteria:\n")
                     for criteria in feature['acceptance_criteria']:
                         f.write(f"- {criteria}\n")
                     f.write("\n")
-                f.write(content.split("## 機能")[1] if "## 機能" in content else "")
+                f.write(content.split("## Features")[1] if "## Features" in content else "")
                 f.truncate()
-            logger.info("README.mdが正常に更新されました。")
+            logger.info("README.md updated successfully.")
         except IOError as e:
-            logger.error(f"README.mdの更新中にエラーが発生しました: {str(e)}")
+            logger.error(f"Error occurred while updating README.md: {str(e)}")
 
     def update_gitignore(self, tech_stack):
-        """既存の.gitignoreファイルを更新します。"""
+        """Updates the existing .gitignore file."""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
             if not os.path.exists(gitignore_path):
@@ -233,19 +233,19 @@ class RepoGenerator:
                 for tech in tech_stack:
                     tech_lower = self._normalize_language(tech)
                     if tech_lower in self.gitignore_templates:
-                        f.write(f"# {tech}固有の無視パターン\n")
+                        f.write(f"# {tech}-specific ignore patterns\n")
                         for pattern in self.gitignore_templates[tech_lower]:
                             f.write(f"{pattern}\n")
                         f.write("\n")
-                f.write("# 一般的な無視パターン\n")
+                f.write("# General ignore patterns\n")
                 f.write(".DS_Store\n")
                 f.write(".idea/\n")
                 f.write(".vscode/\n")
-                f.write(content.split("# 一般的な無視パターン")[1] if "# 一般的な無視パターン" in content else "")
+                f.write(content.split("# General ignore patterns")[1] if "# General ignore patterns" in content else "")
                 f.truncate()
-            logger.info(".gitignoreが正常に更新されました。")
+            logger.info(".gitignore updated successfully.")
         except IOError as e:
-            logger.error(f".gitignoreの更新中にエラーが発生しました: {str(e)}")
+            logger.error(f"Error occurred while updating .gitignore: {str(e)}")
 
     def _get_file_extension(self, language):
         extensions = {

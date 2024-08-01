@@ -67,12 +67,6 @@ class ClaudeRepoCreator:
     async def generate_requirements(self, project_description):
         self.initialize_claude_client()
         cache_key = f"requirements_{hash(project_description)}"
-        cached_requirements = self.cache_manager.get(cache_key)
-        
-        if cached_requirements:
-            improved_requirements = await self.evaluate_and_improve_requirements(cached_requirements, project_description)
-            self.cache_manager.set(cache_key, improved_requirements)
-            return improved_requirements
 
         prompt = self.create_requirements_prompt(project_description)
         max_retries = 3

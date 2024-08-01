@@ -5,6 +5,7 @@ import logging
 import re
 import asyncio
 import anthropic
+import shutil
 from tqdm import tqdm
 from repo_generator import RepoGenerator
 from config_manager import ConfigManager
@@ -22,7 +23,8 @@ class ClaudeRepoCreator:
         self.repo_generator = RepoGenerator()
         self.projects_folder = os.path.join(os.getcwd(), "claude_projects")
         self.current_project_folder = None
-        self.cache_manager = CacheManager(os.path.join(self.projects_folder, 'global_cache.json'))
+        self.global_cache_file = os.path.join(self.projects_folder, 'global_cache.json')
+        self.cache_manager = CacheManager(self.global_cache_file)
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
         self.debug_mode = debug_mode
         if self.debug_mode:
@@ -61,7 +63,14 @@ class ClaudeRepoCreator:
         os.makedirs(self.projects_folder, exist_ok=True)
         self.current_project_folder = os.path.join(self.projects_folder, project_name)
         os.makedirs(self.current_project_folder, exist_ok=True)
-        self.cache_manager = CacheManager(os.path.join(self.current_project_folder, 'cache.json'))
+        
+        # Copy global_cache.json to the project root directory
+        project_cache_file = os.path.join(self.current_project_folder, 'cache.json')
+        if os.path.exists(self.global_cache_file):
+            shutil.copy2(self.global_cache_file, project_cache_file)
+            logger.info(f"Copied global cache to project folder: {project_cache_file}")
+        
+        self.cache_manager = CacheManager(project_cache_file)
         logger.info(f"Created project folder: {self.current_project_folder}")
 
     async def generate_requirements(self, project_description):

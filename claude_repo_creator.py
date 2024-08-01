@@ -80,19 +80,30 @@ class ClaudeRepoCreator:
         logger.info(f"Using project cache: {project_cache_path}")
 
     async def run(self):
+        temp_project_name = "temp_project"
+        temp_cache_path = os.path.join(self.cache_folder, f'{temp_project_name}_cache.json')
         try:
             project_description = input("Enter the project description: ")
             
-            temp_project_name = "temp_project"
-            temp_cache_path = os.path.join(self.cache_folder, f'{temp_project_name}_cache.json')
+            # Ensure cache folder exists
+            os.makedirs(self.cache_folder, exist_ok=True)
+            
+            # Create temporary cache file
+            with open(temp_cache_path, 'w') as f:
+                json.dump({}, f)
+            
             self.cache_manager = CacheManager(temp_cache_path)
             
             requirements = await self.requirements_generator.generate_requirements(project_description)
             
             new_project_name = requirements['project_name']
             new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_cache.json')
+            
+            # Rename temp cache file to project-specific cache file
             os.rename(temp_cache_path, new_cache_path)
-            self.cache_manager = CacheManager(new_cache_path)            
+            self.cache_manager = CacheManager(new_cache_path)
+            
+            self.create_project_folder(new_project_name)
             
             update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
             await self.repository_creator.create_repository(requirements, update_existing, self.current_project_folder, self.repo_generator, self.vc_system)
@@ -102,7 +113,7 @@ class ClaudeRepoCreator:
             logger.error(f"An error occurred during program execution: {str(e)}")
             if os.path.exists(temp_cache_path):
                 os.remove(temp_cache_path)
-            if os.path.exists(self.current_project_folder):
+            if self.current_project_folder and os.path.exists(self.current_project_folder):
                 shutil.rmtree(self.current_project_folder)
         finally:
             await self.__aexit__(None, None, None)

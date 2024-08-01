@@ -15,7 +15,6 @@ class CodeGenerator:
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
     def _normalize_language(self, language: str) -> str:
-        """Normalizes the language name."""
         language = language.lower()
         if language in ['react', 'react.js', 'reactjs']:
             return 'react'
@@ -24,7 +23,6 @@ class CodeGenerator:
         return language
 
     def load_templates(self) -> Dict[str, Dict[str, str]]:
-        """Loads templates for each language and design pattern."""
         templates = {
             'python': {
                 'class': "class {class_name}:\n    def __init__(self):\n        pass\n\n    {methods}",
@@ -101,7 +99,6 @@ class CodeGenerator:
         return None
 
     def _create_prompt(self, feature: Optional[Dict[str, any]], file_info: Dict[str, any], language: str, template: Dict[str, str]) -> str:
-        """Creates the prompt for code generation."""
         feature_info = ""
         if feature:
             feature_info = f"""
@@ -112,7 +109,7 @@ class CodeGenerator:
             """
         
         return f"""
-        Generate {language} code based on the following information:
+        Generate complete {language} code based on the following information without any explanations or comments:
 
         {feature_info}
 
@@ -124,68 +121,52 @@ class CodeGenerator:
         Methods:
         {self._format_methods(file_info.get('methods', []))}
 
-        Use the following templates:
+        Use the following templates as a guide:
         {template}
 
-        Please include the following in your code:
-        1. Appropriate {file_info['type']} definition based on the file information
-        2. All specified properties and methods
-        3. Core logic of the feature (if applicable)
-        4. Error handling (where applicable)
-        5. Comments explaining the implementation
+        Important Instructions:
+        1. Generate ONLY the complete code without any explanations, placeholders, or TODOs.
+        2. Include ALL specified properties and methods.
+        3. Implement the full logic for the feature.
+        4. Include error handling where necessary.
+        5. Do NOT include any comments in the code.
+        6. Do NOT use ellipsis (...) or placeholders like "// Implementation here".
+        7. Ensure the code is production-ready and follows best practices for {language}.
+        8. For HTML, provide the complete structure; for CSS, include all relevant styles.
+        9. For React, include full state management and lifecycle methods as necessary.
 
-        Ensure the generated code follows best practices for {language}.
-        For HTML, provide appropriate structure; for CSS, include relevant styles.
-        For React, include state management and lifecycle methods as necessary.
-
-        Please output the code in a markdown code block.
-        For example:
-
-        ```
-        // Your code here
-        ```
-
-        This will ensure the code is properly formatted and easy to extract.
+        Output the complete code directly without any markdown formatting or code blocks.
         """
 
     def _create_system_prompt(self, language: str) -> str:
-        """Creates the system prompt for code generation."""
         return f"""
-        You are an expert {language} programmer.
-        Generate clean, efficient, and best practice-compliant {language} code based on the given feature requirements and file information.
-        The code should be concise yet sufficiently detailed for other developers to easily understand and extend.
-        Include appropriate comments to explain important parts or complex logic when necessary.
-        Always consider security, performance, and scalability in your implementation.
-        Aim for production-ready quality in the generated code.
-        Remember to output the code in a markdown code block.
+        You are an expert {language} programmer tasked with generating complete, production-ready code.
+        Your responses should contain ONLY the requested code, without any explanations, comments, or markdown formatting.
+        Generate clean, efficient, and best practice-compliant {language} code based on the given requirements.
+        The code must be complete and fully functional, without any placeholders or TODOs.
+        Do not include any text outside of the actual code.
         """
 
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:
-        """Formats the acceptance criteria."""
         return '\n'.join([f"- {c}" for c in criteria])
 
     def _format_methods(self, methods: List[Dict[str, any]]) -> str:
-        """Formats the methods information for the prompt."""
         formatted_methods = []
         for method in methods:
             formatted_methods.append(f"- {method['name']}({', '.join(method['params'])}): {method['return_type']}\n  Description: {method['description']}")
         return '\n'.join(formatted_methods)
 
     def _process_code_response(self, response: str) -> Optional[str]:
-        code_blocks = re.findall(r'```[\w]*\n(.*?)```', response, re.DOTALL)
-        if code_blocks:
-            return '\n\n'.join(code_blocks)
+        # Remove any potential markdown formatting
+        code = re.sub(r'```[\w]*\n|```', '', response).strip()
         
-        # If no code blocks found, try to extract any content that looks like code
-        lines = response.split('\n')
-        code_lines = [line for line in lines if not line.startswith(('#', '//', '/*', '*', '*/')) and line.strip()]
-        if code_lines:
-            return '\n'.join(code_lines)
+        # If the response is empty after removing markdown, return None
+        if not code:
+            return None
         
-        return None
+        return code
 
     def write_code_to_file(self, file_path: str, code: str) -> None:
-        """Writes the generated code to the specified file."""
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(code)
@@ -195,21 +176,14 @@ class CodeGenerator:
             raise
 
     def add_language_template(self, language: str, templates: Dict[str, str]) -> None:
-        """
-        Adds a new language template.
-        :param language: Name of the language to add
-        :param templates: Dictionary of templates for the language
-        """
         normalized_language = self._normalize_language(language)
         self.templates[normalized_language] = templates
         logger.info(f"New language template added: {normalized_language}")
 
     def get_supported_languages(self) -> List[str]:
-        """Returns a list of supported languages."""
         return list(self.templates.keys())
 
     def get_file_extension(self, language: str) -> str:
-        """Returns the file extension for the specified language."""
         extensions = {
             'python': '.py',
             'java': '.java',
@@ -224,12 +198,6 @@ class CodeGenerator:
         return extensions.get(normalized_language, '.txt')
 
     async def generate_code_for_features(self, features: List[Dict[str, any]], folder_structure: Dict[str, any]) -> Dict[str, Optional[str]]:
-        """
-        Generates code for multiple features concurrently.
-        :param features: List of feature dictionaries
-        :param folder_structure: Dictionary containing folder structure and file information
-        :return: Dictionary mapping feature names to generated code
-        """
         async def generate_with_progress(feature, file_info):
             return f"{file_info['name']}", await self.generate_feature_code(feature, file_info)
 

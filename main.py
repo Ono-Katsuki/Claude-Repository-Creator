@@ -24,7 +24,7 @@ class ClaudeRepoCreator:
         self.current_project_folder = None
         self.cache_folder = os.path.join(self.projects_folder, "information_management", "cache")
         self.create_cache_structure()
-        self.cache_manager = CacheManager(os.path.join(self.cache_folder, 'global_cache.json'))
+        self.cache_manager = None
         self.vc_system = VersionControlFactory.create(self.config['version_control'])
         self.debug_mode = debug_mode
         if self.debug_mode:
@@ -62,9 +62,13 @@ class ClaudeRepoCreator:
     def create_cache_structure(self):
         os.makedirs(self.cache_folder, exist_ok=True)
         global_cache_path = os.path.join(self.cache_folder, 'global_cache.json')
-        if not os.path.exists(global_cache_path):
-            with open(global_cache_path, 'w') as f:
-                json.dump({}, f)
+        if os.path.exists(global_cache_path):
+            with open(global_cache_path, 'r') as f:
+                global_cache_data = json.load(f)
+            os.remove(global_cache_path)
+            logger.info(f"Removed global cache file: {global_cache_path}")
+            return global_cache_data
+        return {}
 
     def create_project_folder(self, project_name):
         os.makedirs(self.projects_folder, exist_ok=True)
@@ -73,12 +77,13 @@ class ClaudeRepoCreator:
         
         project_cache_path = os.path.join(self.cache_folder, f'{project_name}_cache.json')
         if not os.path.exists(project_cache_path):
+            global_cache_data = self.create_cache_structure()
             with open(project_cache_path, 'w') as f:
-                json.dump({}, f)
+                json.dump(global_cache_data, f)
         
         self.cache_manager = CacheManager(project_cache_path)
         logger.info(f"Created project folder: {self.current_project_folder}")
-        logger.info(f"Created project cache: {project_cache_path}")
+        logger.info(f"Using project cache: {project_cache_path}")
 
     async def generate_requirements(self, project_description):
         self.initialize_claude_client()
@@ -337,22 +342,24 @@ class ClaudeRepoCreator:
     async def run(self):
         try:
             project_description = input("Enter the project description: ")
-            requirements = await self.generate_requirements(project_description)
+            project_name = input("Enter the project name: ")
+            self.create_project_folder(project_name)
             
-            self.create_project_folder(requirements['project_name'])
+            requirements = await self.generate_requirements(project_description)
             
             update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
             await self.create_repository(requirements, update_existing)
             
-            print(f"Repository for project: {requirements['project_name']} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
+            print(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
         except Exception as e:
             print(f"An error occurred during program execution: {str(e)}")
         finally:
             await self.__aexit__(None, None, None)
 
-if __name__ == "__main__":
+ if __name__ == "__main__":
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
+    debug_mode = os.environ.get('
+
     async def main():
         async with ClaudeRepoCreator(debug_mode=debug_mode) as creator:
             await creator.run()

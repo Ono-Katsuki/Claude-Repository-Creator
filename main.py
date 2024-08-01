@@ -236,10 +236,11 @@ class ClaudeRepoCreator:
             logger.error(f"Error updating existing repository: {str(e)}", exc_info=True)
             raise
 
+
     async def create_feature_files(self, features, tech_stack, folder_structure):
         try:
             logger.info("Creating feature files")
-            logger.info(f"Folder structure: {json.dumps(folder_structure, indent=2)}")  # 1. フォルダ構造のログ
+            logger.info(f"Folder structure: {json.dumps(folder_structure, indent=2)}")
             self.initialize_claude_client()
             code_generator = CodeGenerator(self.config['api_key'], tech_stack)
             
@@ -259,63 +260,41 @@ class ClaudeRepoCreator:
                     logger.error(f"Error processing file {file_info['name']}: {str(e)}", exc_info=True)
                     return file_info['name'], None
 
-            def process_folder(folder_content, current_path):
-                logger.info(f"Starting to process folder: {current_path}")
-                logger.info(f"Folder content: {json.dumps(folder_content, indent=2)}")
-    
+            async def process_structure(structure, base_path):
                 tasks = []
-                logger.info(f"Initial tasks list: {tasks}")
-    
-                # ファイルの処理
-                files = folder_content.get('files', [])
-                logger.info(f"Files to process in {current_path}: {[f['name'] for f in files]}")
-    
-                for file_info in files:
-                    logger.info(f"Processing file: {file_info['name']}")
-                    file_path = os.path.join(current_path, file_info['name'])
-                    logger.info(f"Full file path: {file_path}")
-        
-                    feature = self._get_feature_for_file(features, file_info['name'])
-                    logger.info(f"Feature for file {file_info['name']}: {feature['name'] if feature else 'None'}")
-        
-                    logger.info(f"Appending generate_code task for {file_info['name']}")
-                    tasks.append(generate_code(file_info, file_path, feature))
-    
-                logger.info(f"Tasks after processing files: {len(tasks)}")
-    
-                # サブフォルダの処理
-                subfolders = folder_content.get('subfolders', {})
-                logger.info(f"Subfolders to process in {current_path}: {list(subfolders.keys())}")
-    
-                for subfolder_name, subfolder_content in subfolders.items():
-                    logger.info(f"Processing subfolder: {subfolder_name}")
-                    subfolder_path = os.path.join(current_path, subfolder_name)
-                    logger.info(f"Creating subfolder: {subfolder_path}")
-                    os.makedirs(subfolder_path, exist_ok=True)
-        
-                    logger.info(f"Recursively calling process_folder for {subfolder_name}")
-                    subfolder_tasks = process_folder(subfolder_content, subfolder_path)
-                    logger.info(f"Tasks returned from {subfolder_name}: {len(subfolder_tasks)}")
-        
-                    tasks.extend(subfolder_tasks)
-    
-                logger.info(f"Total tasks after processing {current_path}: {len(tasks)}")
+                for folder, contents in structure.items():
+                    folder_path = os.path.join(base_path, folder)
+                    logger.info(f"Processing folder: {folder_path}")
+                    os.makedirs(folder_path, exist_ok=True)
+                    
+                    for file_info in contents.get("files", []):
+                        file_path = os.path.join(folder_path, file_info['name'])
+                        logger.info(f"Processing file: {file_path}")
+                        feature = self._get_feature_for_file(features, file_info['name'])
+                        logger.info(f"Feature for file {file_info['name']}: {feature['name'] if feature else 'None'}")
+                        tasks.append(generate_code(file_info, file_path, feature))
+                    
+                    # Recursively process subfolders
+                    if "subfolders" in contents:
+                        subfolder_tasks = await process_structure(contents["subfolders"], folder_path)
+                        tasks.extend(subfolder_tasks)
+                
                 return tasks
 
-             tasks = process_folder(folder_structure, self.repo_generator.repo_folder)
-
-             logger.info(f"Starting to generate {len(tasks)} files")
-             results = []
-             for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
-                 result = await future
-                 results.append(result)
-
-             logger.info("All files generated successfully")
-             logger.info(f"Generated files: {json.dumps(dict(results), indent=2)}")  # 4. 生成されたファイルのリストのログ
-             return dict(results)
-         except Exception as e:
-             logger.error(f"Error creating files: {str(e)}", exc_info=True)
-             raise
+            tasks = await process_structure(folder_structure, self.repo_generator.repo_folder)
+            
+            logger.info(f"Starting to generate {len(tasks)} files")
+            results = []
+            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
+                result = await future
+                results.append(result)
+            
+            logger.info("All files generated successfully")
+            logger.info(f"Generated files: {json.dumps(dict(results), indent=2)}")
+            return dict(results)
+        except Exception as e:
+            logger.error(f"Error creating files: {str(e)}", exc_info=True)
+            raise
 
     def _get_feature_for_file(self, features, file_name):
         logger.debug(f"Getting feature for file: {file_name}")

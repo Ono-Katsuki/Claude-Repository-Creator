@@ -342,20 +342,33 @@ class ClaudeRepoCreator:
     async def run(self):
         try:
             project_description = input("Enter the project description: ")
-            project_name = input("Enter the project name: ")
-            self.create_project_folder(project_name)
+            
+            # 仮のプロジェクト名でキャッシュを作成
+            temp_project_name = "temp_project"
+            temp_cache_path = os.path.join(self.cache_folder, f'{temp_project_name}_cache.json')
+            self.cache_manager = CacheManager(temp_cache_path)
             
             requirements = await self.generate_requirements(project_description)
+            
+            # 生成されたプロジェクト名を使用してキャッシュファイル名を変更
+            new_project_name = requirements['project_name']
+            new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_cache.json')
+            os.rename(temp_cache_path, new_cache_path)
+            self.cache_manager = CacheManager(new_cache_path)            
             
             update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
             await self.create_repository(requirements, update_existing)
             
-            print(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
+            print(f"Repository for project: {new_project_name} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
         except Exception as e:
-            print(f"An error occurred during program execution: {str(e)}")
+            logger.error(f"An error occurred during program execution: {str(e)}")
+            # 一時ファイルやフォルダのクリーンアップ
+            if os.path.exists(temp_cache_path):
+                os.remove(temp_cache_path)
+            if os.path.exists(self.current_project_folder):
+                shutil.rmtree(self.current_project_folder)
         finally:
             await self.__aexit__(None, None, None)
-
 
 if __name__ == "__main__":
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'

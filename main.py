@@ -356,10 +356,10 @@ class ClaudeRepoCreator:
         finally:
             await self.__aexit__(None, None, None)
 
- if __name__ == "__main__":
-    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    debug_mode = os.environ.get('
 
+if __name__ == "__main__":
+    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
     async def main():
         async with ClaudeRepoCreator(debug_mode=debug_mode) as creator:
             await creator.run()

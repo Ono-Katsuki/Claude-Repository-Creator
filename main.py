@@ -124,6 +124,7 @@ class ClaudeRepoCreator:
         prompt = f"""
         Evaluate and improve the following project requirements:
         Provide the improved requirements in the same JSON format as the input.
+        It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
         
         Project Description:
         {project_description}
@@ -173,6 +174,8 @@ class ClaudeRepoCreator:
     def create_requirements_prompt(self, project_description):
         return f"""
         Based on the following project description, create a detailed requirements definition:
+
+        It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
 
         {project_description}
 

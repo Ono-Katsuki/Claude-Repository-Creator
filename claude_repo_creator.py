@@ -96,11 +96,21 @@ class ClaudeRepoCreator:
             
             requirements = await self.requirements_generator.generate_requirements(project_description)
             
+            # Save requirements to cache
+            self.cache_manager.set("requirements", requirements)
+            
             new_project_name = requirements['project_name']
             new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_cache.json')
             
-            # Rename temp cache file to project-specific cache file
-            os.rename(temp_cache_path, new_cache_path)
+            # Ensure all cache data is written to disk
+            self.cache_manager.save_cache()
+            
+            # Copy temp cache file to project-specific cache file
+            shutil.copy2(temp_cache_path, new_cache_path)
+            
+            # Remove temp cache file
+            os.remove(temp_cache_path)
+            
             self.cache_manager = CacheManager(new_cache_path)
             
             self.create_project_folder(new_project_name)

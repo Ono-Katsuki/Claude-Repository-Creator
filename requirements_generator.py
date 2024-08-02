@@ -154,6 +154,8 @@ class RequirementsGenerator:
         return f"""
         Based on the following project description, create a detailed requirements definition:
 
+        Produce only the JSON without any comments or additional text.
+
         It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
 
         {project_description}
@@ -231,6 +233,7 @@ class RequirementsGenerator:
         return f"""
         Evaluate and improve the following project requirements:
         Provide the improved requirements in the same JSON format as the input.
+        Produce only the JSON without any comments or additional text.
         It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
 
         It's absolutely critical that you conduct meticulous and comprehensive design for the backend, frontend, and database layers of this system. Half-assed, sloppy design work is completely unacceptable and will doom this project to failure.

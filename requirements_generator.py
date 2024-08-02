@@ -48,43 +48,48 @@ class RequirementsGenerator:
             json_str = json_match.group()
             try:
                 requirements = json.loads(json_str)
-                self._validate_json_requirements(requirements)
+                self._validate_json_structure(requirements)
                 return requirements
             except json.JSONDecodeError:
-                print("JSON is incomplete. Attempting to complete it...")
-                return json_str  # Return the raw string for completion
+                logger.warning("Extracted JSON is incomplete. Returning raw string for completion.")
+                return json_str
         else:
             raise ValueError("No JSON found in the response")
 
-    def _validate_json_requirements(self, requirements: Dict[str, Any]) -> None:
+    def _validate_json_structure(self, requirements: Dict[str, Any]) -> None:
         required_keys = ["project_name", "description", "features", "tech_stack", "folder_structure"]
-        for key in required_keys:
-            if key not in requirements:
-                requirements[key] = self._generate_placeholder_value(key)
-
-    def _generate_placeholder_value(self, key: str) -> Any:
-        if key in ["project_name", "description"]:
-            return f"Placeholder for {key}"
-        elif key in ["features", "tech_stack"]:
-            return []
-        elif key == "folder_structure":
-            return {}
-        else:
-            return None
+        missing_keys = [key for key in required_keys if key not in requirements]
+        if missing_keys:
+            raise ValueError(f"JSON is missing required keys: {', '.join(missing_keys)}")
 
     async def _ensure_complete_json(self, requirements, project_description):
-        try:
-            if isinstance(requirements, str):
-                # If requirements is a string, it's incomplete JSON
-                return await self._complete_truncated_json(requirements, project_description)
-            else:
-                # If it's already a dict, it's complete
-                json.dumps(requirements)  # Validate JSON
-                print("Complete JSON generated successfully.")
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                if isinstance(requirements, str):
+                    requirements = await self._complete_truncated_json(requirements, project_description)
+                
+                # Strict JSON structure validation
+                self._validate_json_structure(requirements)
+                
+                # Further validation (e.g., detailed check of field contents and structure)
+                self._validate_json_content(requirements)
+                
+                print("Complete and valid JSON generated successfully.")
                 return requirements
-        except json.JSONDecodeError:
-            print("JSON is incomplete. Attempting to complete it...")
-            return await self._complete_truncated_json(json.dumps(requirements), project_description)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"JSON completion attempt {attempt + 1} failed: {str(e)}")
+                if attempt == max_attempts - 1:
+                    raise ValueError(f"Failed to generate complete JSON after {max_attempts} attempts") from e
+                requirements = json.dumps(requirements) if isinstance(requirements, dict) else requirements
+
+    def _validate_json_content(self, json_obj: Dict[str, Any]) -> None:
+        if not isinstance(json_obj.get("features"), list) or len(json_obj["features"]) == 0:
+            raise ValueError("'features' must be a non-empty list")
+        if not isinstance(json_obj.get("tech_stack"), list) or len(json_obj["tech_stack"]) == 0:
+            raise ValueError("'tech_stack' must be a non-empty list")
+        if not isinstance(json_obj.get("folder_structure"), dict) or len(json_obj["folder_structure"]) == 0:
+            raise ValueError("'folder_structure' must be a non-empty dictionary")
 
     async def _complete_truncated_json(self, incomplete_json: str, project_description: str) -> Dict[str, Any]:
         try:
@@ -98,23 +103,17 @@ class RequirementsGenerator:
             print("Requesting completion for truncated JSON...")
             completion = await self._execute_claude_request(completion_prompt, lambda x: x)
             
-            # Remove any leading/trailing whitespace and ensure it starts with a valid JSON character
+            # Clean up and combine the completion part
             completion = completion.strip()
             if not completion.startswith('{') and not completion.startswith('['):
                 completion = '{' + completion
-
-            # Combine the parsed part with the completion
             combined_json = json.dumps(parsed_part)[:-1] + ',' + completion[1:]
             
             completed_json = json.loads(combined_json)
-            self._validate_and_fix_json(completed_json)
-
-            print("JSON completion successful.")
             return completed_json
         except Exception as e:
             logger.error(f"Error completing JSON: {str(e)}")
-            print(f"Error completing JSON: {str(e)}")
-            raise ValueError("Unable to complete the truncated JSON")
+            raise ValueError("Unable to complete the truncated JSON") from e
 
     def _partial_parse(self, incomplete_json: str) -> Tuple[Dict[str, Any], str]:
         parsed = {}
@@ -135,25 +134,11 @@ class RequirementsGenerator:
 
         return parsed, unparsed
 
-    def _validate_and_fix_json(self, json_obj: Dict[str, Any]) -> None:
-        required_keys = ["project_name", "description", "features", "tech_stack", "folder_structure"]
-        for key in required_keys:
-            if key not in json_obj:
-                json_obj[key] = self._generate_placeholder_value(key)
-
-        if not isinstance(json_obj.get("features"), list):
-            json_obj["features"] = []
-
-        if not isinstance(json_obj.get("tech_stack"), list):
-            json_obj["tech_stack"] = []
-
-        if not isinstance(json_obj.get("folder_structure"), dict):
-            json_obj["folder_structure"] = {}
-
     async def update_json_requirements(self, current_requirements, project_description):
         print("Updating JSON requirements...")
         prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
-        return await self._execute_claude_request(prompt, self._extract_json_requirements)
+        updated_requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
+        return await self._ensure_complete_json(updated_requirements, project_description)
 
     # Helper methods
     async def _execute_claude_request(self, prompt, extract_function):

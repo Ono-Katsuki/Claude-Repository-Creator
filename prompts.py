@@ -1,5 +1,3 @@
-# prompts.py
-
 def create_text_requirements_prompt(user_request):
     return f"""
     You are a skilled business analyst and system architect tasked with generating detailed software requirements from a user's brief request. Your goal is to expand on the user's initial idea and create a comprehensive set of requirements that cover various aspects of software development.

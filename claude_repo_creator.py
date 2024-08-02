@@ -82,7 +82,15 @@ class ClaudeRepoCreator:
         self.markdown_generator.create_project_summary(requirements, self.repo_generator.repo_folder, summary_path)
         logger.info(f"Created project summary: {summary_path}")
 
-    async def run(self):
+    def prompt_user_action(self):
+        while True:
+            action = input("\nWhat would you like to do? (1: Generate a new project, 2: Change API key, 3: Exit): ")
+            if action in ['1', '2', '3']:
+                return action
+            else:
+                print("Invalid choice. Please enter 1, 2, or 3.")
+
+    async def generate_project(self):
         try:
             project_description = input("Enter the project description: ")
             
@@ -93,6 +101,14 @@ class ClaudeRepoCreator:
             detailed_requirements = await self.requirements_generator.generate_text_requirements(project_description)
             progress_bar.update(1)
             
+            # Generate temporary project name
+            temp_project_name = f"temp_project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+            # Save initial requirements
+            progress_bar.set_description("Saving initial requirements")
+            version = self.requirements_manager.save_requirements(temp_project_name, detailed_requirements)
+            progress_bar.update(1)
+
             # Display and confirm requirements
             print("\nGenerated detailed requirements:")
             print(detailed_requirements)
@@ -103,23 +119,24 @@ class ClaudeRepoCreator:
                 if user_choice == '1':
                     break
                 elif user_choice == '2':
+                    # Get the latest version of requirements
+                    latest_requirements = self.requirements_manager.get_latest_requirements(temp_project_name)
+                    if latest_requirements is None:
+                        print("Error: Could not retrieve the latest requirements.")
+                        continue
+
                     user_feedback = input("Please provide feedback to improve the requirements: ")
-                    detailed_requirements = await self.requirements_generator.update_text_requirements(detailed_requirements, user_feedback)
+                    updated_requirements = await self.requirements_generator.update_text_requirements(latest_requirements, user_feedback)
                     print("\nUpdated detailed requirements:")
-                    print(detailed_requirements)
+                    print(updated_requirements)
+                    # Save updated requirements
+                    version = self.requirements_manager.save_requirements(temp_project_name, updated_requirements)
+                    detailed_requirements = updated_requirements  # Update the current working requirements
                 elif user_choice == '3':
                     print("Process aborted.")
                     return
                 else:
                     print("Invalid choice. Please enter 1, 2, or 3.")
-
-            # Generate temporary project name
-            temp_project_name = f"temp_project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
-            # Save requirements
-            progress_bar.set_description("Saving initial requirements")
-            version = self.requirements_manager.save_requirements(temp_project_name, detailed_requirements)
-            progress_bar.update(1)
 
             # Generate JSON requirements
             progress_bar.set_description("Generating JSON requirements")
@@ -159,8 +176,25 @@ class ClaudeRepoCreator:
             progress_bar.close()
 
         except Exception as e:
-            logger.error(f"An error occurred during program execution: {str(e)}")
+            logger.error(f"An error occurred during project generation: {str(e)}")
             if self.current_project_folder and os.path.exists(self.current_project_folder):
                 shutil.rmtree(self.current_project_folder)
-        finally:
-            await self.__aexit__(None, None, None)
+
+    async def run(self):
+        print("Welcome to Claude Repo Creator!")
+        while True:
+            action = self.prompt_user_action()
+            
+            if action == '1':
+                await self.generate_project()
+            elif action == '2':
+                new_api_key = self.prompt_for_api_key()
+                self.config['api_key'] = new_api_key
+                self.requirements_generator = RequirementsGenerator(new_api_key)
+                self.repository_creator = RepositoryCreator(new_api_key)
+                print("\nAPI key updated.")
+            elif action == '3':
+                print("Exiting the program. Goodbye!")
+                break
+
+        await self.__aexit__(None, None, None)

@@ -85,10 +85,10 @@ class ClaudeRepoCreator:
         try:
             project_description = input("Enter the project description: ")
             
-            # 詳細な要件定義を生成
+            # Generate detailed text requirements
             detailed_requirements = await self.requirements_generator.generate_text_requirements(project_description)
             
-            # 要件定義を表示して確認をとる
+            # Display and confirm requirements
             print("Generated detailed requirements:")
             print(detailed_requirements)
             
@@ -108,34 +108,37 @@ class ClaudeRepoCreator:
                 else:
                     print("Invalid choice. Please enter 1, 2, or 3.")
 
-            # 要件定義から一時的なプロジェクト名を生成
+            # Generate temporary project name
             temp_project_name = f"temp_project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-            # 要件定義を保存
+            # Save requirements
             version = self.requirements_manager.save_requirements(temp_project_name, detailed_requirements)
 
-            # 要件定義を利用してJSONを生成
+            # Generate JSON requirements
             json_requirements = await self.requirements_generator.generate_json_requirements(detailed_requirements)
             
-            new_project_name = json_requirements['project_name']
+            # Update JSON requirements using _create_json_update_prompt
+            updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
+            
+            new_project_name = updated_json_requirements['project_name']
             new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
             
-            # Save requirements directly to JSON file
-            self.save_requirements(json_requirements, new_cache_path)
+            # Save updated requirements to JSON file
+            self.save_requirements(updated_json_requirements, new_cache_path)
             
             self.create_project_folder(new_project_name)
             
-            # 一時的なプロジェクト名を実際のプロジェクト名に更新
+            # Update temporary project name to actual project name
             os.rename(os.path.join(self.requirements_folder, temp_project_name),
                       os.path.join(self.requirements_folder, new_project_name))
             
             update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
-            await self.repository_creator.create_repository(json_requirements, update_existing, self.current_project_folder, self.repo_generator, self.vc_system)
+            await self.repository_creator.create_repository(updated_json_requirements, update_existing, self.current_project_folder, self.repo_generator, self.vc_system)
             
             print(f"Repository for project: {new_project_name} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
             
             # Create and save project summary with full code
-            self.create_project_summary(json_requirements)
+            self.create_project_summary(updated_json_requirements)
             
             print(f"Project summary with full code has been created in the markdown folder.")
         except Exception as e:

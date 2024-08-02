@@ -39,9 +39,9 @@ class RequirementsGenerator:
     async def generate_json_requirements(self, project_description):
         print("Generating JSON requirements...")
         prompt = create_json_requirements_prompt(project_description)
-        return await self._execute_claude_request(prompt, self._extract_json_requirements)
+        return await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
 
-    async def _extract_json_requirements(self, response: str) -> Dict[str, Any]:
+    async def _extract_json_requirements(self, response: str, project_description: str) -> Dict[str, Any]:
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             json_str = json_match.group()
@@ -51,7 +51,7 @@ class RequirementsGenerator:
                 return requirements
             except json.JSONDecodeError:
                 print("JSON is incomplete. Attempting to complete it...")
-                return await self._complete_truncated_json(json_str, self.project_description)
+                return await self._complete_truncated_json(json_str, project_description)
         else:
             raise ValueError("No JSON found in the response")
 
@@ -138,7 +138,7 @@ class RequirementsGenerator:
     async def update_json_requirements(self, current_requirements, project_description):
         print("Updating JSON requirements...")
         prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
-        return await self._execute_claude_request(prompt, self._extract_json_requirements)
+        return await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
 
     # Helper methods
     async def _execute_claude_request(self, prompt, extract_function):
@@ -188,7 +188,6 @@ class RequirementsGenerator:
 
     async def generate_complete_json(self, project_description):
         print("Starting generation of complete JSON...")
-        self.project_description = project_description  # Store for potential use in completion
         incomplete_json = await self.generate_json_requirements(project_description)
         while True:
             try:

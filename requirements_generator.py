@@ -11,7 +11,7 @@ class RequirementsGenerator:
     def __init__(self, api_key):
         self.claude_client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    # 通常の要件定義生成関連メソッド
+    # Text requirements generation methods
     async def generate_text_requirements(self, user_request):
         prompt = self._create_text_requirements_prompt(user_request)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
@@ -145,7 +145,7 @@ class RequirementsGenerator:
         Ensure that your updated requirements are comprehensive, clear, and actionable.
         """
 
-    # JSON形式の要件定義生成関連メソッド
+    # JSON requirements generation methods
     async def generate_json_requirements(self, project_description):
         prompt = self._create_json_requirements_prompt(project_description)
         return await self._execute_claude_request(prompt, self._extract_json_requirements)
@@ -213,9 +213,13 @@ class RequirementsGenerator:
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             json_str = json_match.group()
-            requirements = json.loads(json_str)
-            self._validate_json_requirements(requirements)
-            return requirements
+            try:
+                requirements = json.loads(json_str)
+                self._validate_json_requirements(requirements)
+                return requirements
+            except json.JSONDecodeError:
+                # JSON is incomplete, attempt to complete it
+                return self._complete_truncated_json(json_str)
         else:
             raise ValueError("No JSON found in the response")
 
@@ -224,6 +228,41 @@ class RequirementsGenerator:
         for key in required_keys:
             if key not in requirements:
                 raise KeyError(f"Missing required key: {key}")
+
+    async def _complete_truncated_json(self, incomplete_json):
+        try:
+            # Attempt to parse the incomplete JSON
+            json.loads(incomplete_json)
+            # If successful, the JSON is actually complete
+            return json.loads(incomplete_json)
+        except json.JSONDecodeError as e:
+            # Find the last complete object or array
+            last_complete = re.search(r'^.*\}(?!.*\})', incomplete_json, re.DOTALL)
+            if last_complete:
+                partial_json = last_complete.group()
+            else:
+                partial_json = incomplete_json
+
+            # Create a prompt to complete the JSON
+            completion_prompt = f"""
+            The following JSON is incomplete. Please complete it:
+
+            {partial_json}
+
+            Ensure that you only provide the missing part of the JSON, starting from where it was cut off.
+            Do not repeat any part of the JSON that was already provided.
+            """
+
+            try:
+                completion = await self._execute_claude_request(completion_prompt, lambda x: x)
+                completed_json = partial_json + completion
+
+                # Validate the completed JSON
+                json.loads(completed_json)
+                return json.loads(completed_json)
+            except Exception as e:
+                logger.error(f"Error completing JSON: {str(e)}")
+                raise ValueError("Unable to complete the truncated JSON")
 
     async def update_json_requirements(self, current_requirements, project_description):
         prompt = self._create_json_update_prompt(current_requirements, project_description)
@@ -258,7 +297,7 @@ class RequirementsGenerator:
         7. Verify that all features have clear and testable acceptance criteria.
         """
 
-    # 共通のヘルパーメソッド
+    # Helper methods
     async def _execute_claude_request(self, prompt, extract_function):
         max_retries = 3
         for attempt in range(max_retries):
@@ -291,4 +330,17 @@ class RequirementsGenerator:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
                 else:
+                    logger.error(f"Failed to execute Claude request after {max_retries} attempts: {str(e)}")
                     raise
+
+    async def generate_complete_json(self, project_description):
+        incomplete_json = await self.generate_json_requirements(project_description)
+        while True:
+            try:
+                # Validate the JSON
+                json.loads(json.dumps(incomplete_json))
+                return incomplete_json
+            except json.JSONDecodeError:
+                # If the JSON is incomplete, attempt to complete it
+                completion = await self._complete_truncated_json(json.dumps(incomplete_json))
+                incomplete_json.update(completion)

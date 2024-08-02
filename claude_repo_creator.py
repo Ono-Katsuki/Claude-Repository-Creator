@@ -3,6 +3,7 @@ import json
 import logging
 import shutil
 from datetime import datetime
+from tqdm import tqdm
 from config_manager import ConfigManager
 from cache_manager import CacheManager
 from version_control import VersionControlFactory
@@ -85,22 +86,26 @@ class ClaudeRepoCreator:
         try:
             project_description = input("Enter the project description: ")
             
+            progress_bar = tqdm(total=6, desc="Project Creation Progress", unit="step")
+
             # Generate detailed text requirements
+            progress_bar.set_description("Generating detailed requirements")
             detailed_requirements = await self.requirements_generator.generate_text_requirements(project_description)
+            progress_bar.update(1)
             
             # Display and confirm requirements
-            print("Generated detailed requirements:")
+            print("\nGenerated detailed requirements:")
             print(detailed_requirements)
             
             while True:
-                user_choice = input("Do you want to proceed? (1: Continue, 2: Update requirements, 3: Abort): ")
+                user_choice = input("\nDo you want to proceed? (1: Continue, 2: Update requirements, 3: Abort): ")
                 
                 if user_choice == '1':
                     break
                 elif user_choice == '2':
                     user_feedback = input("Please provide feedback to improve the requirements: ")
                     detailed_requirements = await self.requirements_generator.update_text_requirements(detailed_requirements, user_feedback)
-                    print("Updated detailed requirements:")
+                    print("\nUpdated detailed requirements:")
                     print(detailed_requirements)
                 elif user_choice == '3':
                     print("Process aborted.")
@@ -112,13 +117,19 @@ class ClaudeRepoCreator:
             temp_project_name = f"temp_project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
             # Save requirements
+            progress_bar.set_description("Saving initial requirements")
             version = self.requirements_manager.save_requirements(temp_project_name, detailed_requirements)
+            progress_bar.update(1)
 
             # Generate JSON requirements
+            progress_bar.set_description("Generating JSON requirements")
             json_requirements = await self.requirements_generator.generate_json_requirements(detailed_requirements)
+            progress_bar.update(1)
             
             # Update JSON requirements using _create_json_update_prompt
+            progress_bar.set_description("Refining JSON requirements")
             updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
+            progress_bar.update(1)
             
             new_project_name = updated_json_requirements['project_name']
             new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
@@ -132,15 +143,21 @@ class ClaudeRepoCreator:
             os.rename(os.path.join(self.requirements_folder, temp_project_name),
                       os.path.join(self.requirements_folder, new_project_name))
             
-            update_existing = input("Do you want to update an existing repository? (y/n): ").lower() == 'y'
-            await self.repository_creator.create_repository(updated_json_requirements, update_existing, self.current_project_folder, self.repo_generator, self.vc_system)
+            # Create repository
+            progress_bar.set_description("Creating repository")
+            await self.repository_creator.create_repository(updated_json_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+            progress_bar.update(1)
             
-            print(f"Repository for project: {new_project_name} has been {'updated' if update_existing else 'created'} in folder: {self.repo_generator.repo_folder}")
+            print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
             
             # Create and save project summary with full code
+            progress_bar.set_description("Generating project summary")
             self.create_project_summary(updated_json_requirements)
+            progress_bar.update(1)
             
-            print(f"Project summary with full code has been created in the markdown folder.")
+            print(f"\nProject summary with full code has been created in the markdown folder.")
+            progress_bar.close()
+
         except Exception as e:
             logger.error(f"An error occurred during program execution: {str(e)}")
             if self.current_project_folder and os.path.exists(self.current_project_folder):

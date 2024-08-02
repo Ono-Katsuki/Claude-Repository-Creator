@@ -204,3 +204,36 @@ def create_json_update_prompt(current_requirements, project_description):
     6. Ensure the tech stack is appropriate for the project description.
     7. Verify that all features have clear and testable acceptance criteria.
     """
+
+def create_json_completion_prompt(parsed_part, unparsed_part, project_description):
+    return f"""
+    Project Description:
+    {project_description}
+
+    Based on the above project description and the following incomplete JSON, please complete only the missing part:
+
+    Parsed part (Do not modify or repeat this part):
+    {parsed_part}
+
+    Unparsed part (Complete from here):
+    {unparsed_part}
+
+    Instructions:
+    1. Generate ONLY the missing part of the JSON, starting from where the unparsed part begins.
+    2. Ensure the generated part is consistent with the structure and naming conventions in the parsed part.
+    3. Do not repeat any information already present in the parsed part.
+    4. The output should be a valid JSON fragment that, when combined with the parsed part, forms a complete and valid JSON object.
+    5. Make sure the completed JSON aligns with the project description and requirements.
+    6. Do not include any explanations or comments, just the JSON fragment.
+
+    Remember:
+    - Include a main file (e.g., main.py, index.js) in the appropriate location if not already present.
+    - Ensure all necessary dependencies are included.
+    - Verify that the folder structure is logical and follows best practices for the chosen tech stack.
+    - Make sure all function and method calls are correct and consistent.
+    - Add any missing critical components for the project to function properly.
+    - Ensure the tech stack is appropriate for the project description.
+    - Verify that all features have clear and testable acceptance criteria.
+
+    Produce only the JSON fragment for the missing part.
+    """

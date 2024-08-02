@@ -87,6 +87,12 @@ class RequirementsGenerator:
 
         </detailed_requirements>
 
+        It's absolutely critical that you conduct meticulous and comprehensive design for the backend, frontend, and database layers of this system. Half-assed, sloppy design work is completely unacceptable and will doom this project to failure.
+        You need to think through every detail and edge case for each component:
+        Backend: Robust API design, efficient algorithms, proper error handling, security measures, scalability considerations. Leave no stone unturned.
+        Frontend: Intuitive UX flow, responsive layouts, accessibility, performance optimization, state management. Make it bulletproof.
+        Database: Optimal schema design, indexing strategy, query optimization, data integrity rules, backup and recovery plans. Get it right the first time.
+
         Remember to maintain a professional tone throughout the document and ensure that all requirements are clear, specific, and actionable.
         """
 
@@ -130,6 +136,12 @@ class RequirementsGenerator:
 
         </detailed_requirements>
 
+        It's absolutely critical that you conduct meticulous and comprehensive design for the backend, frontend, and database layers of this system. Half-assed, sloppy design work is completely unacceptable and will doom this project to failure.
+        You need to think through every detail and edge case for each component:
+        Backend: Robust API design, efficient algorithms, proper error handling, security measures, scalability considerations. Leave no stone unturned.
+        Frontend: Intuitive UX flow, responsive layouts, accessibility, performance optimization, state management. Make it bulletproof.
+        Database: Optimal schema design, indexing strategy, query optimization, data integrity rules, backup and recovery plans. Get it right the first time.
+
         Ensure that your updated requirements are comprehensive, clear, and actionable.
         """
 
@@ -152,6 +164,12 @@ class RequirementsGenerator:
         Include at least one item in each array (features, tech_stack, files, etc.).
         For the folder structure, provide a realistic and comprehensive structure that reflects the project's complexity.
         Include a main file (e.g., main.py, index.js) in the appropriate location.
+
+        It's absolutely critical that you conduct meticulous and comprehensive design for the backend, frontend, and database layers of this system. Half-assed, sloppy design work is completely unacceptable and will doom this project to failure.
+        You need to think through every detail and edge case for each component:
+        Backend: Robust API design, efficient algorithms, proper error handling, security measures, scalability considerations. Leave no stone unturned.
+        Frontend: Intuitive UX flow, responsive layouts, accessibility, performance optimization, state management. Make it bulletproof.
+        Database: Optimal schema design, indexing strategy, query optimization, data integrity rules, backup and recovery plans. Get it right the first time.
 
         Provide the requirements in the following JSON format:
         {{
@@ -214,7 +232,13 @@ class RequirementsGenerator:
         Evaluate and improve the following project requirements:
         Provide the improved requirements in the same JSON format as the input.
         It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
-        
+
+        It's absolutely critical that you conduct meticulous and comprehensive design for the backend, frontend, and database layers of this system. Half-assed, sloppy design work is completely unacceptable and will doom this project to failure.
+        You need to think through every detail and edge case for each component:
+        Backend: Robust API design, efficient algorithms, proper error handling, security measures, scalability considerations. Leave no stone unturned.
+        Frontend: Intuitive UX flow, responsive layouts, accessibility, performance optimization, state management. Make it bulletproof.
+        Database: Optimal schema design, indexing strategy, query optimization, data integrity rules, backup and recovery plans. Get it right the first time.
+
         Project Description:
         {project_description}
 

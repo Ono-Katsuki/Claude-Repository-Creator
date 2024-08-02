@@ -41,7 +41,7 @@ class RequirementsGenerator:
         prompt = create_json_requirements_prompt(project_description)
         return await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
 
-    async def _extract_json_requirements(self, response: str, project_description: str) -> Dict[str, Any]:
+    async def _extract_json_requirements(self, response: str, project_description: str = None) -> Dict[str, Any]:
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             json_str = json_match.group()
@@ -50,8 +50,11 @@ class RequirementsGenerator:
                 self._validate_json_requirements(requirements)
                 return requirements
             except json.JSONDecodeError:
-                print("JSON is incomplete. Attempting to complete it...")
-                return await self._complete_truncated_json(json_str, project_description)
+                if project_description:
+                    print("JSON is incomplete. Attempting to complete it...")
+                    return await self._complete_truncated_json(json_str, project_description)
+                else:
+                    raise ValueError("Incomplete JSON and no project description provided for completion")
         else:
             raise ValueError("No JSON found in the response")
 
@@ -138,11 +141,19 @@ class RequirementsGenerator:
     async def update_json_requirements(self, current_requirements, project_description):
         print("Updating JSON requirements...")
         prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
-        updated_requirements = await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
+        updated_requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
         
         # Ensure the result is a dictionary, not a coroutine
         if asyncio.iscoroutine(updated_requirements):
             updated_requirements = await updated_requirements
+        
+        # If updated_requirements is still a coroutine (due to _extract_json_requirements),
+        # we need to await it one more time
+        if asyncio.iscoroutine(updated_requirements):
+            updated_requirements = await updated_requirements
+        
+        # Validate and fix the JSON structure
+        self._validate_and_fix_json(updated_requirements)
         
         return updated_requirements
 

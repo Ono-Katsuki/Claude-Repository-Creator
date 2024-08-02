@@ -9,7 +9,7 @@ from prompts import (
     create_text_update_prompt,
     create_json_requirements_prompt,
     create_json_update_prompt,
-    create_json_completion_prompt  # 新しく追加されたプロンプト
+    create_json_completion_prompt
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class RequirementsGenerator:
                 return requirements
             except json.JSONDecodeError:
                 print("JSON is incomplete. Attempting to complete it...")
-                return await self._complete_truncated_json(json_str)
+                return await self._complete_truncated_json(json_str, self.project_description)
         else:
             raise ValueError("No JSON found in the response")
 
@@ -71,15 +71,27 @@ class RequirementsGenerator:
         else:
             return None
 
-    async def _complete_truncated_json(self, incomplete_json: str) -> Dict[str, Any]:
+    async def _complete_truncated_json(self, incomplete_json: str, project_description: str) -> Dict[str, Any]:
         try:
             parsed_part, unparsed_part = self._partial_parse(incomplete_json)
-            completion_prompt = create_json_completion_prompt(json.dumps(parsed_part, indent=2), unparsed_part)
+            completion_prompt = create_json_completion_prompt(
+                json.dumps(parsed_part, indent=2),
+                unparsed_part,
+                project_description
+            )
 
             print("Requesting completion for truncated JSON...")
             completion = await self._execute_claude_request(completion_prompt, lambda x: x)
             
-            completed_json = self._intelligent_merge(parsed_part, completion)
+            # Remove any leading/trailing whitespace and ensure it starts with a valid JSON character
+            completion = completion.strip()
+            if not completion.startswith('{') and not completion.startswith('['):
+                completion = '{' + completion
+
+            # Combine the parsed part with the completion
+            combined_json = json.dumps(parsed_part)[:-1] + ',' + completion[1:]
+            
+            completed_json = json.loads(combined_json)
             self._validate_and_fix_json(completed_json)
 
             print("JSON completion successful.")
@@ -107,23 +119,6 @@ class RequirementsGenerator:
                     break
 
         return parsed, unparsed
-
-    def _intelligent_merge(self, parsed_part: Dict[str, Any], completion: str) -> Dict[str, Any]:
-        try:
-            completion_json = json.loads(completion)
-            merged = self._recursive_merge(parsed_part, completion_json)
-            return merged
-        except json.JSONDecodeError:
-            logger.warning("Completion is not a valid JSON. Falling back to simple merge.")
-            return {**parsed_part, **json.loads(completion)}
-
-    def _recursive_merge(self, dict1: Dict[str, Any], dict2: Dict[str, Any]) -> Dict[str, Any]:
-        for key, value in dict2.items():
-            if key in dict1 and isinstance(dict1[key], dict) and isinstance(value, dict):
-                dict1[key] = self._recursive_merge(dict1[key], value)
-            else:
-                dict1[key] = value
-        return dict1
 
     def _validate_and_fix_json(self, json_obj: Dict[str, Any]) -> None:
         required_keys = ["project_name", "description", "features", "tech_stack", "folder_structure"]
@@ -193,6 +188,7 @@ class RequirementsGenerator:
 
     async def generate_complete_json(self, project_description):
         print("Starting generation of complete JSON...")
+        self.project_description = project_description  # Store for potential use in completion
         incomplete_json = await self.generate_json_requirements(project_description)
         while True:
             try:
@@ -201,7 +197,7 @@ class RequirementsGenerator:
                 return incomplete_json
             except json.JSONDecodeError:
                 print("JSON is still incomplete. Attempting to complete it...")
-                completion = await self._complete_truncated_json(json.dumps(incomplete_json))
+                completion = await self._complete_truncated_json(json.dumps(incomplete_json), project_description)
                 incomplete_json.update(completion)
                 print("JSON updated with completion. Validating again...")
 

@@ -212,7 +212,7 @@ class RequirementsGenerator:
         }}
         """
 
-    def _extract_json_requirements(self, response):
+    async def _extract_json_requirements(self, response):
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             json_str = json_match.group()
@@ -223,7 +223,7 @@ class RequirementsGenerator:
             except json.JSONDecodeError:
                 # JSON is incomplete, attempt to complete it
                 print("JSON is incomplete. Attempting to complete it...")
-                return self._complete_truncated_json(json_str)
+                return await self._complete_truncated_json(json_str)
         else:
             raise ValueError("No JSON found in the response")
 

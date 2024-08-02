@@ -138,7 +138,13 @@ class RequirementsGenerator:
     async def update_json_requirements(self, current_requirements, project_description):
         print("Updating JSON requirements...")
         prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
-        return await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
+        updated_requirements = await self._execute_claude_request(prompt, lambda response: self._extract_json_requirements(response, project_description))
+        
+        # Ensure the result is a dictionary, not a coroutine
+        if asyncio.iscoroutine(updated_requirements):
+            updated_requirements = await updated_requirements
+        
+        return updated_requirements
 
     # Helper methods
     async def _execute_claude_request(self, prompt, extract_function):

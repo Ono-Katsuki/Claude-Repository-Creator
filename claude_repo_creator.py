@@ -148,31 +148,36 @@ class ClaudeRepoCreator:
             updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
             progress_bar.update(1)
             
-            new_project_name = updated_json_requirements['project_name']
-            new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
+            # Ensure updated_json_requirements is a dict, not a coroutine
+            if isinstance(updated_json_requirements, dict):
+                new_project_name = updated_json_requirements['project_name']
+                new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
+                
+                # Save updated requirements to JSON file
+                self.save_requirements(updated_json_requirements, new_cache_path)
+                
+                self.create_project_folder(new_project_name)
+                
+                # Update temporary project name to actual project name
+                os.rename(os.path.join(self.requirements_folder, temp_project_name),
+                          os.path.join(self.requirements_folder, new_project_name))
+                
+                # Create repository
+                progress_bar.set_description("Creating repository")
+                await self.repository_creator.create_repository(updated_json_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+                progress_bar.update(1)
+                
+                print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
+                
+                # Create and save project summary with full code
+                progress_bar.set_description("Generating project summary")
+                self.create_project_summary(updated_json_requirements)
+                progress_bar.update(1)
+                
+                print(f"\nProject summary with full code has been created in the markdown folder.")
+            else:
+                raise ValueError("Invalid JSON requirements format")
             
-            # Save updated requirements to JSON file
-            self.save_requirements(updated_json_requirements, new_cache_path)
-            
-            self.create_project_folder(new_project_name)
-            
-            # Update temporary project name to actual project name
-            os.rename(os.path.join(self.requirements_folder, temp_project_name),
-                      os.path.join(self.requirements_folder, new_project_name))
-            
-            # Create repository
-            progress_bar.set_description("Creating repository")
-            await self.repository_creator.create_repository(updated_json_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
-            progress_bar.update(1)
-            
-            print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
-            
-            # Create and save project summary with full code
-            progress_bar.set_description("Generating project summary")
-            self.create_project_summary(updated_json_requirements)
-            progress_bar.update(1)
-            
-            print(f"\nProject summary with full code has been created in the markdown folder.")
             progress_bar.close()
 
         except Exception as e:

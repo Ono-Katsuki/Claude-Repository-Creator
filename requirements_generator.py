@@ -146,9 +146,6 @@ class RequirementsGenerator:
 
         {project_description}
 
-        For the "tech_stack" field, please only use the following allowed values:
-        ["python", "javascript", "java", "react", "react native", "html", "css", "ruby"]
-
         Make sure to use the full filename with its extension for the "name" field within "files".
         
         Ensure that ALL fields are properly filled and that there are NO empty arrays or objects.
@@ -217,9 +214,6 @@ class RequirementsGenerator:
         Evaluate and improve the following project requirements:
         Provide the improved requirements in the same JSON format as the input.
         It is absolutely crucial that you generate a complete and perfect JSON without any omissions or abbreviations. Every field must be properly filled, and there should be no placeholder values or TODO comments.
-        
-        For the "tech_stack" field, please only use the following allowed values:
-        ["python", "javascript", "java", "react", "react native", "html", "css", "ruby"]
         
         Project Description:
         {project_description}

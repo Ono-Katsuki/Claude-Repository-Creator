@@ -20,7 +20,7 @@ class RequirementsGenerator:
 
     # Text requirements generation methods
     async def generate_text_requirements(self, user_request):
-        print("Generating text requirements...")
+        logger.info("Generating text requirements...")
         prompt = create_text_requirements_prompt(user_request)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
@@ -31,13 +31,13 @@ class RequirementsGenerator:
         return None
 
     async def update_text_requirements(self, current_requirements, user_feedback):
-        print("Updating text requirements based on user feedback...")
+        logger.info("Updating text requirements based on user feedback...")
         prompt = create_text_update_prompt(current_requirements, user_feedback)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
     # JSON requirements generation methods
     async def generate_json_requirements(self, project_description):
-        print("Generating JSON requirements...")
+        logger.info("Generating JSON requirements...")
         prompt = create_json_requirements_prompt(project_description)
         requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
         return await self._ensure_complete_json(requirements, project_description)
@@ -66,21 +66,24 @@ class RequirementsGenerator:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
+                logger.info(f"Attempt {attempt + 1} to ensure complete JSON")
                 if isinstance(requirements, str):
+                    logger.info("Requirements is a string, attempting to complete truncated JSON")
                     requirements = await self._complete_truncated_json(requirements, project_description)
                 
-                # Strict JSON structure validation
+                logger.info("Validating JSON structure")
                 self._validate_json_structure(requirements)
                 
-                # Further validation (e.g., detailed check of field contents and structure)
+                logger.info("Validating JSON content")
                 self._validate_json_content(requirements)
                 
-                print("Complete and valid JSON generated successfully.")
+                logger.info("Complete and valid JSON generated successfully")
                 return requirements
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"JSON completion attempt {attempt + 1} failed: {str(e)}")
                 if attempt == max_attempts - 1:
-                    raise ValueError(f"Failed to generate complete JSON after {max_attempts} attempts") from e
+                    logger.error(f"Failed to generate complete JSON after {max_attempts} attempts")
+                    raise ValueError(f"Failed to generate complete JSON after {max_attempts} attempts: {str(e)}") from e
                 requirements = json.dumps(requirements) if isinstance(requirements, dict) else requirements
 
     def _validate_json_content(self, json_obj: Dict[str, Any]) -> None:
@@ -93,27 +96,44 @@ class RequirementsGenerator:
 
     async def _complete_truncated_json(self, incomplete_json: str, project_description: str) -> Dict[str, Any]:
         try:
+            logger.info("Attempting to complete truncated JSON")
             parsed_part, unparsed_part = self._partial_parse(incomplete_json)
+            logger.info(f"Parsed part: {json.dumps(parsed_part, indent=2)}")
+            logger.info(f"Unparsed part: {unparsed_part}")
+
             completion_prompt = create_json_completion_prompt(
                 json.dumps(parsed_part, indent=2),
                 unparsed_part,
                 project_description
             )
+            logger.info(f"JSON completion prompt:\n{completion_prompt}")
 
-            print("Requesting completion for truncated JSON...")
+            logger.info("Requesting completion for truncated JSON")
             completion = await self._execute_claude_request(completion_prompt, lambda x: x)
+            logger.info(f"Claude's completion response:\n{completion}")
             
-            # Clean up and combine the completion part
+            logger.info("Cleaning up and combining the completion part")
             completion = completion.strip()
             if not completion.startswith('{') and not completion.startswith('['):
                 completion = '{' + completion
+            logger.info(f"Cleaned completion:\n{completion}")
+
             combined_json = json.dumps(parsed_part)[:-1] + ',' + completion[1:]
+            logger.info(f"Combined JSON before parsing:\n{combined_json}")
             
+            logger.info("Parsing the combined JSON")
             completed_json = json.loads(combined_json)
+            logger.info(f"Successfully parsed combined JSON:\n{json.dumps(completed_json, indent=2)}")
             return completed_json
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            logger.error(f"Error position: {e.pos}")
+            logger.error(f"Error line and column: {e.lineno}:{e.colno}")
+            logger.error(f"Error context: {e.doc[max(0, e.pos-50):e.pos+50]}")
+            raise ValueError(f"Unable to parse the combined JSON: {str(e)}") from e
         except Exception as e:
             logger.error(f"Error completing JSON: {str(e)}")
-            raise ValueError("Unable to complete the truncated JSON") from e
+            raise ValueError(f"Unable to complete the truncated JSON: {str(e)}") from e
 
     def _partial_parse(self, incomplete_json: str) -> Tuple[Dict[str, Any], str]:
         parsed = {}
@@ -132,10 +152,11 @@ class RequirementsGenerator:
                 except json.JSONDecodeError:
                     break
 
+        logger.info(f"Partial parse result - Parsed: {json.dumps(parsed, indent=2)}, Unparsed: {unparsed}")
         return parsed, unparsed
 
     async def update_json_requirements(self, current_requirements, project_description):
-        print("Updating JSON requirements...")
+        logger.info("Updating JSON requirements...")
         prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
         updated_requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
         return await self._ensure_complete_json(updated_requirements, project_description)
@@ -145,7 +166,7 @@ class RequirementsGenerator:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                print(f"Executing Claude request (attempt {attempt + 1}/{max_retries})...")
+                logger.info(f"Executing Claude request (attempt {attempt + 1}/{max_retries})...")
                 message = await self.claude_client.messages.create(
                     model="claude-3-5-sonnet-20240620",
                     max_tokens=4096,
@@ -171,23 +192,22 @@ class RequirementsGenerator:
                     result = extract_function(response)
                 
                 if result is not None:
-                    print("Claude request successful.")
+                    logger.info("Claude request successful.")
                     return result
                 else:
-                    print("No valid requirements found in the response.")
+                    logger.warning("No valid requirements found in the response.")
                     raise ValueError("No valid requirements found in the response")
             except Exception as e:
                 if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1} failed. Retrying in {2 ** attempt} seconds...")
+                    logger.warning(f"Attempt {attempt + 1} failed. Retrying in {2 ** attempt} seconds...")
                     await asyncio.sleep(2 ** attempt)
                 else:
                     error_msg = f"Failed to execute Claude request after {max_retries} attempts: {str(e)}"
                     logger.error(error_msg)
-                    print(error_msg)
                     raise
 
     async def generate_requirements(self, project_description, output_format="json"):
-        print(f"Generating requirements in {output_format} format...")
+        logger.info(f"Generating requirements in {output_format} format...")
         if output_format.lower() == "json":
             return await self.generate_json_requirements(project_description)
         elif output_format.lower() == "text":
@@ -196,7 +216,7 @@ class RequirementsGenerator:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")
 
     async def update_requirements(self, current_requirements, project_description, output_format="json"):
-        print(f"Updating requirements in {output_format} format...")
+        logger.info(f"Updating requirements in {output_format} format...")
         if output_format.lower() == "json":
             return await self.update_json_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":

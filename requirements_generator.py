@@ -114,11 +114,17 @@ class RequirementsGenerator:
             
             logger.info("Cleaning up and combining the completion part")
             completion = completion.strip()
-            if not completion.startswith('{') and not completion.startswith('['):
-                completion = '{' + completion
+            if completion.startswith('{'):
+                completion = completion[1:]  # Remove the opening brace
+            if completion.endswith('}'):
+                completion = completion[:-1]  # Remove the closing brace
             logger.info(f"Cleaned completion:\n{completion}")
 
-            combined_json = json.dumps(parsed_part)[:-1] + ',' + completion[1:]
+            # Combine parsed part and completion more carefully
+            combined_json = json.dumps(parsed_part)[:-1]  # Remove closing brace
+            if not combined_json.endswith(','):
+                combined_json += ','
+            combined_json += completion + '}'
             logger.info(f"Combined JSON before parsing:\n{combined_json}")
             
             logger.info("Parsing the combined JSON")
@@ -130,10 +136,31 @@ class RequirementsGenerator:
             logger.error(f"Error position: {e.pos}")
             logger.error(f"Error line and column: {e.lineno}:{e.colno}")
             logger.error(f"Error context: {e.doc[max(0, e.pos-50):e.pos+50]}")
-            raise ValueError(f"Unable to parse the combined JSON: {str(e)}") from e
+            
+            # Attempt to repair the JSON
+            try:
+                logger.info("Attempting to repair the JSON")
+                repaired_json = self._repair_json(combined_json)
+                logger.info(f"Repaired JSON:\n{repaired_json}")
+                return json.loads(repaired_json)
+            except:
+                logger.error("Failed to repair the JSON")
+                raise ValueError(f"Unable to parse or repair the combined JSON: {str(e)}") from e
         except Exception as e:
             logger.error(f"Error completing JSON: {str(e)}")
             raise ValueError(f"Unable to complete the truncated JSON: {str(e)}") from e
+
+    def _repair_json(self, invalid_json: str) -> str:
+        # Simple JSON repair attempt
+        # Remove any trailing commas before closing braces or brackets
+        repaired = re.sub(r',\s*}', '}', invalid_json)
+        repaired = re.sub(r',\s*]', ']', repaired)
+        
+        # Ensure the JSON is properly closed
+        if not repaired.endswith('}'):
+            repaired += '}'
+        
+        return repaired
 
     def _partial_parse(self, incomplete_json: str) -> Tuple[Dict[str, Any], str]:
         parsed = {}
@@ -150,6 +177,7 @@ class RequirementsGenerator:
                     parsed = json.loads(valid_json)
                     unparsed = unparsed[e.pos:]
                 except json.JSONDecodeError:
+                    # If we can't parse even the valid part, break and return what we have
                     break
 
         logger.info(f"Partial parse result - Parsed: {json.dumps(parsed, indent=2)}, Unparsed: {unparsed}")

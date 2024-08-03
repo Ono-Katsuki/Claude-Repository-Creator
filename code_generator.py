@@ -52,15 +52,15 @@ class CodeGenerator:
             'react native': {
                 'component': "import React from 'react';\nimport {{ View, Text }} from 'react-native';\n\nconst {component_name} = ({props}) => {\n  return (\n    <View>\n      <Text>{component_name}</Text>\n    </View>\n  );\n};\n\nexport default {component_name};",
             },
+            'generic': {
+                'file': "// {file_name}\n// {description}\n\n{content}",
+            }
         }
         return templates
 
     async def generate_feature_code(self, feature: Optional[Dict[str, any]], file_info: Dict[str, any], max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
-        template = self.templates.get(language, {})
-
-        if not template:
-            raise ValueError(f"Unsupported language: {language}")
+        template = self.templates.get(language, self.templates['generic'])
 
         prompt = self._create_prompt(feature, file_info, language, template)
         system_prompt = self._create_system_prompt(language)
@@ -109,7 +109,7 @@ class CodeGenerator:
             """
         
         return f"""
-        Generate complete {language} code based on the following information without any explanations or comments:
+        Generate complete code for a {language} file based on the following information:
 
         {feature_info}
 
@@ -121,7 +121,7 @@ class CodeGenerator:
         Methods:
         {self._format_methods(file_info.get('methods', []))}
 
-        Use the following templates as a guide:
+        Use the following template as a guide if applicable:
         {template}
 
         Important Instructions:
@@ -129,22 +129,24 @@ class CodeGenerator:
         2. Include ALL specified properties and methods.
         3. Implement the full logic for the feature.
         4. Include error handling where necessary.
-        5. Do NOT include any comments in the code.
+        5. Do NOT include any comments in the code unless they are crucial for understanding.
         6. Do NOT use ellipsis (...) or placeholders like "// Implementation here".
         7. Ensure the code is production-ready and follows best practices for {language}.
-        8. For HTML, provide the complete structure; for CSS, include all relevant styles.
-        9. For React, include full state management and lifecycle methods as necessary.
+        8. If the language is not in the provided templates, use general best practices for that language.
+        9. For HTML, provide the complete structure; for CSS, include all relevant styles.
+        10. For React or similar frameworks, include full state management and lifecycle methods as necessary.
 
         Output the complete code directly without any markdown formatting or code blocks.
         """
 
     def _create_system_prompt(self, language: str) -> str:
         return f"""
-        You are an expert {language} programmer tasked with generating complete, production-ready code.
-        Your responses should contain ONLY the requested code, without any explanations, comments, or markdown formatting.
-        Generate clean, efficient, and best practice-compliant {language} code based on the given requirements.
+        You are an expert programmer tasked with generating complete, production-ready code in {language}.
+        Your responses should contain ONLY the requested code, without any explanations or markdown formatting.
+        Generate clean, efficient, and best practice-compliant code based on the given requirements.
         The code must be complete and fully functional, without any placeholders or TODOs.
         Do not include any text outside of the actual code.
+        If the specified language is not one you're familiar with, use general programming best practices to create a logical implementation.
         """
 
     def _format_acceptance_criteria(self, criteria: List[str]) -> str:
@@ -164,7 +166,24 @@ class CodeGenerator:
         if not code:
             return None
         
-        return code
+        # Remove any leading or trailing whitespace and newlines
+        code = code.strip()
+        
+        # If the code starts with comments or docstrings, keep them
+        lines = code.split('\n')
+        clean_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith(('/*', '*', '*/', '//', '#', '"""', "'''")):
+                clean_lines.append(line)
+            elif stripped:
+                clean_lines.append(line)
+                break
+        
+        # Join the remaining lines
+        clean_lines.extend(lines[len(clean_lines):])
+        
+        return '\n'.join(clean_lines)
 
     def write_code_to_file(self, file_path: str, code: str) -> None:
         try:

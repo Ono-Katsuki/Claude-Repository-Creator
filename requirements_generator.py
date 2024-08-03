@@ -113,18 +113,10 @@ class RequirementsGenerator:
             logger.info(f"Claude's completion response:\n{completion}")
             
             logger.info("Cleaning up and combining the completion part")
-            completion = completion.strip()
-            if completion.startswith('{'):
-                completion = completion[1:]  # Remove the opening brace
-            if completion.endswith('}'):
-                completion = completion[:-1]  # Remove the closing brace
-            logger.info(f"Cleaned completion:\n{completion}")
+            cleaned_completion = self._clean_completion(completion)
+            logger.info(f"Cleaned completion:\n{cleaned_completion}")
 
-            # Combine parsed part and completion more carefully
-            combined_json = json.dumps(parsed_part)[:-1]  # Remove closing brace
-            if not combined_json.endswith(','):
-                combined_json += ','
-            combined_json += completion + '}'
+            combined_json = self._combine_json(parsed_part, cleaned_completion)
             logger.info(f"Combined JSON before parsing:\n{combined_json}")
             
             logger.info("Parsing the combined JSON")
@@ -150,38 +142,63 @@ class RequirementsGenerator:
             logger.error(f"Error completing JSON: {str(e)}")
             raise ValueError(f"Unable to complete the truncated JSON: {str(e)}") from e
 
-    def _repair_json(self, invalid_json: str) -> str:
-        # Simple JSON repair attempt
-        # Remove any trailing commas before closing braces or brackets
-        repaired = re.sub(r',\s*}', '}', invalid_json)
-        repaired = re.sub(r',\s*]', ']', repaired)
+    def _clean_completion(self, completion: str) -> str:
+        cleaned = completion.strip()
+        cleaned = re.sub(r'^,\s*', '', cleaned)
+        cleaned = re.sub(r',\s*$', '', cleaned)
+        if cleaned.startswith('{'):
+            cleaned = cleaned[1:]
+        if cleaned.endswith('}'):
+            cleaned = cleaned[:-1]
+        return cleaned.strip()
+
+    def _combine_json(self, parsed_part: Dict[str, Any], completion: str) -> str:
+        if not parsed_part:
+            return '{' + completion + '}'
         
-        # Ensure the JSON is properly closed
+        base_json = json.dumps(parsed_part)[:-1]
+        
+        if not base_json.endswith(',') and not completion.startswith(','):
+            base_json += ','
+        
+        return base_json + completion + '}'
+
+    def _repair_json(self, invalid_json: str) -> str:
+        repaired = re.sub(r'^\s*,*\s*', '', invalid_json)
+        repaired = re.sub(r',\s*}', '}', repaired)
+        repaired = re.sub(r',\s*]', ']', repaired)
+        repaired = re.sub(r'(\w+)(?=\s*:)', r'"\1"', repaired)
+        if not repaired.startswith('{'):
+            repaired = '{' + repaired
         if not repaired.endswith('}'):
             repaired += '}'
-        
         return repaired
 
     def _partial_parse(self, incomplete_json: str) -> Tuple[Dict[str, Any], str]:
         parsed = {}
-        unparsed = incomplete_json
-
-        while unparsed:
+        unparsed = incomplete_json.strip()
+        
+        if unparsed.startswith('{,'):
+            unparsed = '{' + unparsed[2:]
+        
+        try:
+            parsed = json.loads(unparsed)
+            return parsed, ""
+        except json.JSONDecodeError as e:
+            valid_part = unparsed[:e.pos]
+            remaining_part = unparsed[e.pos:]
+            
+            last_valid_pos = valid_part.rfind('}')
+            if last_valid_pos != -1:
+                valid_part = valid_part[:last_valid_pos+1]
+                remaining_part = unparsed[last_valid_pos+1:]
+            
             try:
-                parsed = json.loads(unparsed)
-                unparsed = ""
-                break
-            except json.JSONDecodeError as e:
-                valid_json = unparsed[:e.pos]
-                try:
-                    parsed = json.loads(valid_json)
-                    unparsed = unparsed[e.pos:]
-                except json.JSONDecodeError:
-                    # If we can't parse even the valid part, break and return what we have
-                    break
-
-        logger.info(f"Partial parse result - Parsed: {json.dumps(parsed, indent=2)}, Unparsed: {unparsed}")
-        return parsed, unparsed
+                parsed = json.loads(valid_part)
+            except json.JSONDecodeError:
+                parsed = {}
+            
+            return parsed, remaining_part
 
     async def update_json_requirements(self, current_requirements, project_description):
         logger.info("Updating JSON requirements...")

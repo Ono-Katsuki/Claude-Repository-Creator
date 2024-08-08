@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, List, Optional
 from tqdm import tqdm
-from json_models import Requirements, Feature, File, Folder
+from repository_models import Requirements, Feature, File, Folder
 from prompts import create_code_generation_prompt, create_code_generation_system_prompt
 
 logger = logging.getLogger(__name__)

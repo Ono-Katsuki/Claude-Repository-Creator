@@ -73,15 +73,17 @@ class RequirementsGenerator:
         prompt = create_text_update_prompt(current_requirements, user_feedback)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    async def generate_json_requirements(self, project_description: str) -> Requirements:
+    async def generate_json_requirements(self, project_description: str) -> Dict[str, Any]:
         logger.info("Generating JSON requirements...")
         prompt = create_json_requirements_prompt(project_description)
-        return await self._execute_openai_request(prompt, Requirements)
+        requirements = await self._execute_openai_request(prompt, Requirements)
+        return requirements.model_dump()
 
-    async def update_json_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
+    async def update_json_requirements(self, current_requirements: Requirements, project_description: str) -> Dict[str, Any]:
         logger.info("Updating JSON requirements...")
         prompt = create_json_update_prompt(current_requirements.model_dump_json(indent=2), project_description)
-        return await self._execute_openai_request(prompt, Requirements)
+        updated_requirements = await self._execute_openai_request(prompt, Requirements)
+        return updated_requirements.model_dump()
 
     async def _execute_claude_request(self, prompt: str, extract_function: callable) -> Union[str, Dict[str, Any]]:
         max_retries = 3
@@ -140,7 +142,7 @@ class RequirementsGenerator:
                 else:
                     raise ValueError(f"Failed to execute OpenAI request after {max_retries} attempts: {str(e)}")
 
-    async def generate_requirements(self, project_description: str, output_format: str = "json") -> Union[str, Requirements]:
+    async def generate_requirements(self, project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
         logger.info(f"Generating requirements in {output_format} format...")
         if output_format.lower() == "json":
             return await self.generate_json_requirements(project_description)
@@ -149,7 +151,7 @@ class RequirementsGenerator:
         else:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")
 
-    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "json") -> Union[str, Requirements]:
+    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
         logger.info(f"Updating requirements in {output_format} format...")
         if output_format.lower() == "json":
             if isinstance(current_requirements, str):

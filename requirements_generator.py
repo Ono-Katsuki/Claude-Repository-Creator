@@ -157,7 +157,7 @@ class RequirementsGenerator:
             return await self.update_json_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":
             if isinstance(current_requirements, Requirements):
-                current_requirements = current_requirements.json(indent=2)
+                current_requirements = current_requirements.model_dump_json(indent=2)
             return await self.update_text_requirements(current_requirements, project_description)
         else:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")

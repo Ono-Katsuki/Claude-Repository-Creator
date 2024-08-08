@@ -11,7 +11,7 @@ from prompts import (
     create_json_requirements_prompt,
     create_json_update_prompt
 )
-from models import Requirements
+from repository_models import Requirements
 
 logger = logging.getLogger(__name__)
 

@@ -1,45 +1,12 @@
 import os
 import asyncio
 from tqdm import tqdm
-from typing import List, Dict, Any
-from pydantic import BaseModel
-from code_generator import CodeGenerator
+from typing import Dict, Any
 import logging
+from code_generator import CodeGenerator
+from repository_models import Requirements, Feature, Folder, File
 
 logger = logging.getLogger(__name__)
-
-class Method(BaseModel):
-    name: str
-    params: List[str]
-    return_type: str
-    description: str
-
-class FileContent(BaseModel):
-    type: str
-    description: str
-    properties: List[str] = []
-    methods: List[Method] = []
-
-class File(BaseModel):
-    name: str
-    content: FileContent
-
-class Folder(BaseModel):
-    name: str
-    subfolders: List['Folder'] = []
-    files: List[File] = []
-
-class Feature(BaseModel):
-    name: str
-    description: str
-    acceptance_criteria: List[str]
-
-class Requirements(BaseModel):
-    project_name: str
-    description: str
-    features: List[Feature]
-    tech_stack: List[str]
-    folder_structure: Folder
 
 class RepositoryCreator:
     def __init__(self, api_key: str):

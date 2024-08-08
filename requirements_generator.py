@@ -79,9 +79,14 @@ class RequirementsGenerator:
         requirements = await self._execute_openai_request(prompt, Requirements)
         return requirements.model_dump()
 
-    async def update_json_requirements(self, current_requirements: Requirements, project_description: str) -> Dict[str, Any]:
+    async def update_json_requirements(self, current_requirements: Union[Dict[str, Any], Requirements], project_description: str) -> Dict[str, Any]:
         logger.info("Updating JSON requirements...")
-        prompt = create_json_update_prompt(current_requirements.model_dump_json(indent=2), project_description)
+        if isinstance(current_requirements, dict):
+            current_requirements_json = json.dumps(current_requirements, indent=2)
+        else:
+            current_requirements_json = current_requirements.model_dump_json(indent=2)
+        
+        prompt = create_json_update_prompt(current_requirements_json, project_description)
         updated_requirements = await self._execute_openai_request(prompt, Requirements)
         return updated_requirements.model_dump()
 
@@ -151,14 +156,18 @@ class RequirementsGenerator:
         else:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")
 
-    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
+    async def update_requirements(self, current_requirements: Union[str, Dict[str, Any], Requirements], project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
         logger.info(f"Updating requirements in {output_format} format...")
         if output_format.lower() == "json":
             if isinstance(current_requirements, str):
-                current_requirements = Requirements.parse_raw(current_requirements)
+                current_requirements = json.loads(current_requirements)
+            elif isinstance(current_requirements, Requirements):
+                current_requirements = current_requirements.model_dump()
             return await self.update_json_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":
-            if isinstance(current_requirements, Requirements):
+            if isinstance(current_requirements, dict):
+                current_requirements = json.dumps(current_requirements, indent=2)
+            elif isinstance(current_requirements, Requirements):
                 current_requirements = current_requirements.model_dump_json(indent=2)
             return await self.update_text_requirements(current_requirements, project_description)
         else:

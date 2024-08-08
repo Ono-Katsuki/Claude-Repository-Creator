@@ -153,10 +153,6 @@ class ClaudeRepoCreator:
             progress_bar.set_description("Refining JSON requirements")
             updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
             progress_bar.update(1)
-             
-            print("Debug: Updated JSON requirements:")
-            print(updated_json_requirements)  # Add this line
-            print("Debug: Type of updated_json_requirements:", type(updated_json_requirements))  # Add this line
         
             # Ensure updated_json_requirements is a dict, not a coroutine
             if isinstance(updated_json_requirements, dict):

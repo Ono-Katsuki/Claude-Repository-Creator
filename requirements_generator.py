@@ -3,7 +3,7 @@ import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, List, Union, Any 
+from typing import Dict, List, Union, Any, Type 
 from openai import AsyncOpenAI
 from prompts import (
     create_text_requirements_prompt,

@@ -3,7 +3,7 @@ import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Type
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from prompts import (

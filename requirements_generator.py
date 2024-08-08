@@ -80,7 +80,7 @@ class RequirementsGenerator:
 
     async def update_json_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
         logger.info("Updating JSON requirements...")
-        prompt = create_json_update_prompt(current_requirements.json(indent=2), project_description)
+        prompt = create_json_update_prompt(current_requirements.model_dump_json(indent=2), project_description)
         return await self._execute_openai_request(prompt, Requirements)
 
     async def _execute_claude_request(self, prompt: str, extract_function: callable) -> Union[str, Dict[str, Any]]:

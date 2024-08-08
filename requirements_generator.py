@@ -3,7 +3,7 @@ import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, Any, List, Union, Type
+from typing import Dict, List, Union, Literal, Type
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from prompts import (
@@ -21,15 +21,19 @@ class Method(BaseModel):
     return_type: str
     description: str
 
+class FileContent(BaseModel):
+    type: Literal["class", "function", "component"]
+    description: str
+    properties: List[str] = Field(default_factory=list)
+    methods: List[Method] = Field(default_factory=list)
+
 class File(BaseModel):
     name: str
-    type: str
-    description: str
-    properties: List[str]
-    methods: List[Method]
+    content: FileContent
 
-class FolderContent(BaseModel):
-    subfolders: Dict[str, 'FolderContent'] = Field(default_factory=dict)
+class Folder(BaseModel):
+    name: str
+    subfolders: List['Folder'] = Field(default_factory=list)
     files: List[File] = Field(default_factory=list)
 
 class Feature(BaseModel):
@@ -42,10 +46,13 @@ class Requirements(BaseModel):
     description: str
     features: List[Feature]
     tech_stack: List[str]
-    folder_structure: Dict[str, FolderContent]
+    folder_structure: Folder
 
-# FolderContentの循環参照を解決
-FolderContent.model_rebuild()
+    class Config:
+        extra = 'forbid'
+
+# Folderの循環参照を解決
+Folder.model_rebuild()
 
 class RequirementsGenerator:
     def __init__(self, claude_api_key: str, openai_api_key: str):

@@ -5,7 +5,7 @@ import anthropic
 import logging
 from typing import Dict, List, Union, Literal, Type, Any 
 from pydantic import BaseModel, Field
-from openai import OpenAI
+from openai import AsyncOpenAI
 from prompts import (
     create_text_requirements_prompt,
     create_text_update_prompt,
@@ -57,7 +57,7 @@ Folder.model_rebuild()
 class RequirementsGenerator:
     def __init__(self, claude_api_key: str, openai_api_key: str):
         self.claude_client = anthropic.AsyncAnthropic(api_key=claude_api_key)
-        self.openai_client = OpenAI(api_key=openai_api_key)
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
 
     async def generate_text_requirements(self, user_request: str) -> str:
         logger.info("Generating text requirements...")

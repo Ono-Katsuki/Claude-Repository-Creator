@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Union
 from pydantic import BaseModel, Field
 
 class Method(BaseModel):
@@ -8,7 +8,7 @@ class Method(BaseModel):
     description: str
 
 class FileContent(BaseModel):
-    type: str
+    type: Literal["class", "function", "component"]
     description: str
     properties: List[str] = Field(default_factory=list)
     methods: List[Method] = Field(default_factory=list)
@@ -34,4 +34,8 @@ class Requirements(BaseModel):
     tech_stack: List[str]
     folder_structure: Folder
 
-Folder.update_forward_refs()
+    class Config:
+        extra = 'forbid'
+
+# Folderの循環参照を解決
+Folder.model_rebuild()

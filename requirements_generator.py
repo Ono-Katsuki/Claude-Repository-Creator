@@ -3,7 +3,7 @@ import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from prompts import (
@@ -14,11 +14,6 @@ from prompts import (
 )
 
 logger = logging.getLogger(__name__)
-
-class Feature(BaseModel):
-    name: str
-    description: str
-    acceptance_criteria: List[str]
 
 class Method(BaseModel):
     name: str
@@ -33,47 +28,55 @@ class File(BaseModel):
     properties: List[str]
     methods: List[Method]
 
-class FolderStructure(BaseModel):
-    subfolders: Dict[str, 'FolderStructure'] = Field(default_factory=dict)
+class FolderContent(BaseModel):
+    subfolders: Dict[str, 'FolderContent'] = Field(default_factory=dict)
     files: List[File] = Field(default_factory=list)
+
+class Feature(BaseModel):
+    name: str
+    description: str
+    acceptance_criteria: List[str]
 
 class Requirements(BaseModel):
     project_name: str
     description: str
     features: List[Feature]
     tech_stack: List[str]
-    folder_structure: Dict[str, FolderStructure]
+    folder_structure: Dict[str, FolderContent]
+
+# FolderContentの循環参照を解決
+FolderContent.model_rebuild()
 
 class RequirementsGenerator:
-    def __init__(self, claude_api_key, openai_api_key):
+    def __init__(self, claude_api_key: str, openai_api_key: str):
         self.claude_client = anthropic.AsyncAnthropic(api_key=claude_api_key)
         self.openai_client = OpenAI(api_key=openai_api_key)
 
-    async def generate_text_requirements(self, user_request):
+    async def generate_text_requirements(self, user_request: str) -> str:
         logger.info("Generating text requirements...")
         prompt = create_text_requirements_prompt(user_request)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    def _extract_text_requirements(self, response):
+    def _extract_text_requirements(self, response: str) -> str:
         match = re.search(r'<detailed_requirements>(.*?)</detailed_requirements>', response, re.DOTALL)
         return match.group(1).strip() if match else None
 
-    async def update_text_requirements(self, current_requirements, user_feedback):
+    async def update_text_requirements(self, current_requirements: str, user_feedback: str) -> str:
         logger.info("Updating text requirements based on user feedback...")
         prompt = create_text_update_prompt(current_requirements, user_feedback)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    async def generate_json_requirements(self, project_description):
+    async def generate_json_requirements(self, project_description: str) -> Requirements:
         logger.info("Generating JSON requirements...")
         prompt = create_json_requirements_prompt(project_description)
         return await self._execute_openai_request(prompt, Requirements)
 
-    async def update_json_requirements(self, current_requirements, project_description):
+    async def update_json_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
         logger.info("Updating JSON requirements...")
-        prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
+        prompt = create_json_update_prompt(current_requirements.json(indent=2), project_description)
         return await self._execute_openai_request(prompt, Requirements)
 
-    async def _execute_claude_request(self, prompt, extract_function):
+    async def _execute_claude_request(self, prompt: str, extract_function: callable) -> Union[str, Dict[str, Any]]:
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -111,7 +114,7 @@ class RequirementsGenerator:
                 else:
                     raise ValueError(f"Failed to execute Claude request after {max_retries} attempts: {str(e)}")
 
-    async def _execute_openai_request(self, prompt, response_model):
+    async def _execute_openai_request(self, prompt: str, response_model: Type[BaseModel]) -> BaseModel:
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -130,7 +133,7 @@ class RequirementsGenerator:
                 else:
                     raise ValueError(f"Failed to execute OpenAI request after {max_retries} attempts: {str(e)}")
 
-    async def generate_requirements(self, project_description, output_format="json"):
+    async def generate_requirements(self, project_description: str, output_format: str = "json") -> Union[str, Requirements]:
         logger.info(f"Generating requirements in {output_format} format...")
         if output_format.lower() == "json":
             return await self.generate_json_requirements(project_description)
@@ -139,11 +142,15 @@ class RequirementsGenerator:
         else:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")
 
-    async def update_requirements(self, current_requirements, project_description, output_format="json"):
+    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "json") -> Union[str, Requirements]:
         logger.info(f"Updating requirements in {output_format} format...")
         if output_format.lower() == "json":
+            if isinstance(current_requirements, str):
+                current_requirements = Requirements.parse_raw(current_requirements)
             return await self.update_json_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":
+            if isinstance(current_requirements, Requirements):
+                current_requirements = current_requirements.json(indent=2)
             return await self.update_text_requirements(current_requirements, project_description)
         else:
             raise ValueError("Invalid output format. Choose 'json' or 'text'.")

@@ -1,6 +1,7 @@
 import os
 import logging
 import shutil
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -84,30 +85,49 @@ class RepoGenerator:
             return 'react native'
         return language
 
-    def create_repo_folder(self, project_name):
+    def create_repo_folder(self, project_name: str):
         """Creates a new folder for the repository"""
         self.repo_folder = os.path.join(os.getcwd(), project_name)
         os.makedirs(self.repo_folder, exist_ok=True)
         logger.info(f"Created new repository folder: {self.repo_folder}")
 
-    def create_structure(self, structure, base_path=None):
-        """Creates folder structure and files."""
+    def create_structure(self, folder_structure: Dict[str, Any], base_path: str = None):
+        """Creates folder structure and files based on the Requirements model."""
         base_path = base_path or self.repo_folder
-        for folder, contents in structure.items():
-            folder_path = os.path.join(base_path, folder)
-            os.makedirs(folder_path, exist_ok=True)
-            
-            for file_info in contents.get("files", []):
-                file_path = os.path.join(folder_path, file_info['name'])
-                with open(file_path, 'w') as f:
-                    f.write(f"# TODO: Implement {file_info['name']}\n")
-                    f.write(f"# Type: {file_info['type']}\n")
-                    f.write(f"# Description: {file_info['description']}\n")
-                logger.info(f"Created file: {file_path}")
-            
-            self.create_structure(contents.get("subfolders", {}), folder_path)
+        
+        for file in folder_structure.get('files', []):
+            file_path = os.path.join(base_path, file['name'])
+            with open(file_path, 'w') as f:
+                f.write(f"# TODO: Implement {file['name']}\n")
+                f.write(f"# Type: {file['type']}\n")
+                f.write(f"# Description: {file['description']}\n")
+                
+                if file['type'] == 'class':
+                    f.write("\nclass ClassName:\n")
+                    for prop in file.get('properties', []):
+                        f.write(f"    {prop}\n")
+                    for method in file.get('methods', []):
+                        f.write(f"    def {method['name']}({', '.join(method['params'])}):\n")
+                        f.write(f"        # TODO: Implement {method['name']}\n")
+                        f.write(f"        # {method['description']}\n")
+                        f.write(f"        pass\n\n")
+                elif file['type'] == 'function':
+                    f.write("\ndef function_name():\n")
+                    f.write("    # TODO: Implement function\n")
+                    f.write("    pass\n")
+                elif file['type'] == 'component':
+                    f.write("\ndef Component():\n")
+                    f.write("    # TODO: Implement component\n")
+                    f.write("    return None\n")
+                
+            logger.info(f"Created file: {file_path}")
+        
+        for subfolder in folder_structure.get('subfolders', []):
+            subfolder_path = os.path.join(base_path, subfolder['name'])
+            os.makedirs(subfolder_path, exist_ok=True)
+            self.create_structure(subfolder, subfolder_path)
 
-    def create_readme(self, requirements):
+    def create_readme(self, requirements: Dict[str, Any]):
         """Creates a README.md file with project information."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
@@ -126,7 +146,7 @@ class RepoGenerator:
         except IOError as e:
             logger.error(f"Error occurred while creating README.md: {str(e)}")
 
-    def create_gitignore(self, tech_stack):
+    def create_gitignore(self, tech_stack: List[str]):
         """Creates a .gitignore file based on the technology stack."""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
@@ -146,55 +166,62 @@ class RepoGenerator:
         except IOError as e:
             logger.error(f"Error occurred while creating .gitignore: {str(e)}")
 
-    def get_current_structure(self, base_path=None):
+    def get_current_structure(self, base_path: str = None) -> Dict[str, Any]:
         """Recursively gets the current folder structure."""
         base_path = base_path or self.repo_folder
-        structure = {}
+        structure = {"files": [], "subfolders": []}
         for item in os.listdir(base_path):
             item_path = os.path.join(base_path, item)
             if os.path.isdir(item_path):
-                structure[item] = {
-                    "subfolders": self.get_current_structure(item_path),
-                    "files": []
+                subfolder = {
+                    "name": item,
+                    **self.get_current_structure(item_path)
                 }
+                structure["subfolders"].append(subfolder)
             else:
-                if "files" not in structure:
-                    structure["files"] = []
-                structure["files"].append({"name": item, "type": "file", "description": "Auto-generated file"})
+                structure["files"].append({
+                    "name": item,
+                    "type": "file",
+                    "description": "Auto-generated file"
+                })
         return structure
 
-    def update_structure(self, current_structure, updated_structure, base_path=None):
+    def update_structure(self, current_structure: Dict[str, Any], updated_structure: Dict[str, Any], base_path: str = None):
         """Updates the existing structure based on the updated structure."""
         base_path = base_path or self.repo_folder
-        for folder, contents in updated_structure.items():
-            folder_path = os.path.join(base_path, folder)
-            if folder not in current_structure:
-                os.makedirs(folder_path, exist_ok=True)
-                logger.info(f"Created new folder: {folder_path}")
-            
-            for file_info in contents.get("files", []):
-                file_path = os.path.join(folder_path, file_info['name'])
-                if not os.path.exists(file_path):
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(f"# TODO: Implement {file_info['name']}\n")
-                        f.write(f"# Type: {file_info['type']}\n")
-                        f.write(f"# Description: {file_info['description']}\n")
-                    logger.info(f"Created new file: {file_path}")
-            
-            self.update_structure(
-                current_structure.get(folder, {}).get("subfolders", {}),
-                contents.get("subfolders", {}),
-                folder_path
-            )
         
-        # Remove folders and files not in the updated structure
-        for folder in current_structure:
-            if folder not in updated_structure:
-                folder_path = os.path.join(base_path, folder)
-                shutil.rmtree(folder_path)
-                logger.info(f"Removed folder: {folder_path}")
+        # Update files
+        current_files = {f['name']: f for f in current_structure.get('files', [])}
+        for file in updated_structure.get('files', []):
+            if file['name'] not in current_files:
+                self.create_structure({"files": [file]}, base_path)
+        
+        # Remove files not in the updated structure
+        for file in current_files.values():
+            if file['name'] not in [f['name'] for f in updated_structure.get('files', [])]:
+                os.remove(os.path.join(base_path, file['name']))
+                logger.info(f"Removed file: {file['name']}")
+        
+        # Update subfolders
+        current_subfolders = {f['name']: f for f in current_structure.get('subfolders', [])}
+        for subfolder in updated_structure.get('subfolders', []):
+            if subfolder['name'] in current_subfolders:
+                self.update_structure(
+                    current_subfolders[subfolder['name']],
+                    subfolder,
+                    os.path.join(base_path, subfolder['name'])
+                )
+            else:
+                os.makedirs(os.path.join(base_path, subfolder['name']), exist_ok=True)
+                self.create_structure(subfolder, os.path.join(base_path, subfolder['name']))
+        
+        # Remove subfolders not in the updated structure
+        for subfolder in current_subfolders.values():
+            if subfolder['name'] not in [f['name'] for f in updated_structure.get('subfolders', [])]:
+                shutil.rmtree(os.path.join(base_path, subfolder['name']))
+                logger.info(f"Removed folder: {subfolder['name']}")
 
-    def update_readme(self, requirements):
+    def update_readme(self, requirements: Dict[str, Any]):
         """Updates the existing README.md file."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
@@ -220,7 +247,7 @@ class RepoGenerator:
         except IOError as e:
             logger.error(f"Error occurred while updating README.md: {str(e)}")
 
-    def update_gitignore(self, tech_stack):
+    def update_gitignore(self, tech_stack: List[str]):
         """Updates the existing .gitignore file."""
         try:
             gitignore_path = os.path.join(self.repo_folder, ".gitignore")
@@ -246,16 +273,3 @@ class RepoGenerator:
             logger.info(".gitignore updated successfully.")
         except IOError as e:
             logger.error(f"Error occurred while updating .gitignore: {str(e)}")
-
-    def _get_file_extension(self, language):
-        extensions = {
-            'python': '.py',
-            'javascript': '.js',
-            'react': '.jsx',
-            'react native': '.js',
-            'html': '.html',
-            'css': '.css',
-            'ruby': '.rb',
-            'java': '.java'
-        }
-        return extensions.get(language, '.txt')

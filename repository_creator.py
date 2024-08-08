@@ -1,7 +1,7 @@
 import os
 import asyncio
 from tqdm import tqdm
-from typing import Dict, Any
+from typing import Dict, Any, List 
 import logging
 from code_generator import CodeGenerator
 from repository_models import Requirements, Feature, Folder, File

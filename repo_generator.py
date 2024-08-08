@@ -98,41 +98,27 @@ class RepoGenerator:
         for file in folder_structure.get('files', []):
             file_path = os.path.join(base_path, file['name'])
             with open(file_path, 'w') as f:
-                content = file.get('content', {})
                 f.write(f"# TODO: Implement {file['name']}\n")
-                f.write(f"# Description: {content.get('description', 'No description provided')}\n")
+                f.write(f"# Type: {file['type']}\n")
+                f.write(f"# Description: {file['description']}\n")
                 
-                file_type = content.get('type')
-                if file_type == 'class':
+                if file['type'] == 'class':
                     f.write("\nclass ClassName:\n")
-                    for prop in content.get('properties', []):
-                        f.write(f"    {prop} = None\n")
-                    for method in content.get('methods', []):
-                        params = ", ".join(method.get('params', []))
-                        f.write(f"    def {method['name']}({params}):\n")
+                    for prop in file.get('properties', []):
+                        f.write(f"    {prop}\n")
+                    for method in file.get('methods', []):
+                        f.write(f"    def {method['name']}({', '.join(method['params'])}):\n")
                         f.write(f"        # TODO: Implement {method['name']}\n")
-                        f.write(f"        # {method.get('description', 'No description provided')}\n")
+                        f.write(f"        # {method['description']}\n")
                         f.write(f"        pass\n\n")
-                elif file_type == 'function':
-                    for method in content.get('methods', []):
-                        params = ", ".join(method.get('params', []))
-                        f.write(f"\ndef {method['name']}({params}):\n")
-                        f.write(f"    # TODO: Implement {method['name']}\n")
-                        f.write(f"    # {method.get('description', 'No description provided')}\n")
-                        f.write("    pass\n")
-                elif file_type == 'component':
-                    f.write("\nclass Component:\n")
-                    f.write("    def __init__(self):\n")
-                    for prop in content.get('properties', []):
-                        f.write(f"        self.{prop} = None\n")
-                    for method in content.get('methods', []):
-                        params = ", ".join(method.get('params', []))
-                        f.write(f"    def {method['name']}({params}):\n")
-                        f.write(f"        # TODO: Implement {method['name']}\n")
-                        f.write(f"        # {method.get('description', 'No description provided')}\n")
-                        f.write("        pass\n")
-                else:
-                    f.write(f"# Unknown file type: {file_type}\n")
+                elif file['type'] == 'function':
+                    f.write("\ndef function_name():\n")
+                    f.write("    # TODO: Implement function\n")
+                    f.write("    pass\n")
+                elif file['type'] == 'component':
+                    f.write("\ndef Component():\n")
+                    f.write("    # TODO: Implement component\n")
+                    f.write("    return None\n")
                 
             logger.info(f"Created file: {file_path}")
         
@@ -195,10 +181,8 @@ class RepoGenerator:
             else:
                 structure["files"].append({
                     "name": item,
-                    "content": {
-                        "type": "file",
-                        "description": "Auto-generated file"
-                    }
+                    "type": "file",
+                    "description": "Auto-generated file"
                 })
         return structure
 

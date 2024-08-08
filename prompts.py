@@ -408,3 +408,62 @@ Example output:
     }}
   }}
 """
+
+
+def create_code_generation_prompt(feature, file_info, language):
+    feature_info = ""
+    if feature:
+        feature_info = f"""
+        Feature Name: {feature.name}
+        Feature Description: {feature.description}
+        Acceptance Criteria:
+        {format_acceptance_criteria(feature.acceptance_criteria)}
+        """
+    
+    return f"""
+    Generate complete code for a {language} file based on the following information:
+
+    {feature_info}
+
+    File Information:
+    Name: {file_info.name}
+    Type: {file_info.content.type}
+    Description: {file_info.content.description}
+    Properties: {', '.join(file_info.content.properties)}
+    Methods:
+    {format_methods(file_info.content.methods)}
+
+    Important Instructions:
+    1. Generate ONLY the complete code without any explanations, placeholders, or TODOs.
+    2. Include ALL specified properties and methods.
+    3. Implement the full logic for the feature.
+    4. Include error handling where necessary.
+    5. Do NOT include any comments in the code unless they are crucial for understanding.
+    6. Do NOT use ellipsis (...) or placeholders like "// Implementation here".
+    7. Ensure the code is production-ready and follows best practices for {language}.
+    8. For HTML, provide the complete structure; for CSS, include all relevant styles.
+    9. For React or similar frameworks, include full state management and lifecycle methods as necessary.
+    10. Do not generate code for image or audio files.
+
+    Output the complete code directly without any markdown formatting or code blocks.
+    """
+
+def create_code_generation_system_prompt(language):
+    return f"""
+    You are an expert programmer tasked with generating complete, production-ready code in {language}.
+    Your responses should contain ONLY the requested code, without any explanations or markdown formatting.
+    Generate clean, efficient, and best practice-compliant code based on the given requirements.
+    The code must be complete and fully functional, without any placeholders or TODOs.
+    Do not include any text outside of the actual code.
+    If the specified language is not one you're familiar with, use general programming best practices to create a logical implementation.
+    Do not generate code for image or audio files.
+    """
+
+def format_acceptance_criteria(criteria):
+    return '\n'.join([f"- {c}" for c in criteria])
+
+def format_methods(methods):
+    formatted_methods = []
+    for method in methods:
+        formatted_methods.append(f"- {method.name}({', '.join(method.params)}): {method.return_type}\n  Description: {method.description}")
+    return '\n'.join(formatted_methods)

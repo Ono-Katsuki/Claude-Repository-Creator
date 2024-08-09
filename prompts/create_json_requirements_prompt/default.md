@@ -1,5 +1,3 @@
-# Create JSON Requirements Prompt
-
 Based on the following project description, create a detailed requirements definition:
 
 Produce only the JSON without any comments or additional text.

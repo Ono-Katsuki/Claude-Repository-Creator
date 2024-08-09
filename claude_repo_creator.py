@@ -12,6 +12,7 @@ from requirements_generator import RequirementsGenerator
 from repository_creator import RepositoryCreator
 from markdown_generator import MarkdownGenerator
 from requirements_manager import RequirementsManager
+from repository_models import Requirements
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +78,15 @@ class ClaudeRepoCreator:
         os.makedirs(self.current_project_folder, exist_ok=True)
         logger.info(f"Created project folder: {self.current_project_folder}")
 
-    def save_requirements(self, requirements, file_path):
+    def save_requirements(self, requirements: Requirements, file_path: str):
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(requirements, f, ensure_ascii=False, indent=2)
+            json.dump(requirements.model_dump(), f, ensure_ascii=False, indent=2)
         logger.info(f"Saved requirements to: {file_path}")
 
-    def create_project_summary(self, requirements):
-        summary_filename = f"{requirements['project_name']}_summary.md"
+    def create_project_summary(self, requirements: Requirements):
+        summary_filename = f"{requirements.project_name}_summary.md"
         summary_path = os.path.join(self.markdown_folder, summary_filename)
-        self.markdown_generator.create_project_summary(requirements, self.repo_generator.repo_folder, summary_path)
+        self.markdown_generator.create_project_summary(requirements.model_dump(), self.repo_generator.repo_folder, summary_path)
         logger.info(f"Created project summary: {summary_path}")
 
     def prompt_user_action(self):
@@ -144,45 +145,41 @@ class ClaudeRepoCreator:
                 else:
                     print("Invalid choice. Please enter 1, 2, or 3.")
 
-            # Generate JSON requirements
-            progress_bar.set_description("Generating JSON requirements")
-            json_requirements = await self.requirements_generator.generate_json_requirements(detailed_requirements)
+            # Generate structured requirements
+            progress_bar.set_description("Generating structured requirements")
+            requirements = await self.requirements_generator.generate_structured_requirements(detailed_requirements)
             progress_bar.update(1)
             
-            # Update JSON requirements using _create_json_update_prompt
-            progress_bar.set_description("Refining JSON requirements")
-            updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
+            # Update structured requirements
+            progress_bar.set_description("Refining structured requirements")
+            updated_requirements = await self.requirements_generator.update_structured_requirements(requirements, detailed_requirements)
             progress_bar.update(1)
         
-            # Ensure updated_json_requirements is a dict, not a coroutine
-            if isinstance(updated_json_requirements, dict):
-                new_project_name = updated_json_requirements['project_name']
-                new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
-                
-                # Save updated requirements to JSON file
-                self.save_requirements(updated_json_requirements, new_cache_path)
-                
-                self.create_project_folder(new_project_name)
-                
-                # Update temporary project name to actual project name
-                os.rename(os.path.join(self.requirements_folder, temp_project_name),
-                          os.path.join(self.requirements_folder, new_project_name))
-                
-                # Create repository
-                progress_bar.set_description("Creating repository")
-                await self.repository_creator.create_repository(updated_json_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
-                progress_bar.update(1)
-                
-                print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
-                
-                # Create and save project summary with full code
-                progress_bar.set_description("Generating project summary")
-                self.create_project_summary(updated_json_requirements)
-                progress_bar.update(1)
-                
-                print(f"\nProject summary with full code has been created in the markdown folder.")
-            else:
-                raise ValueError("Invalid JSON requirements format")
+            new_project_name = updated_requirements.project_name
+            new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
+            
+            # Save updated requirements to JSON file
+            self.save_requirements(updated_requirements, new_cache_path)
+            
+            self.create_project_folder(new_project_name)
+            
+            # Update temporary project name to actual project name
+            os.rename(os.path.join(self.requirements_folder, temp_project_name),
+                      os.path.join(self.requirements_folder, new_project_name))
+            
+            # Create repository
+            progress_bar.set_description("Creating repository")
+            await self.repository_creator.create_repository(updated_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+            progress_bar.update(1)
+            
+            print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
+            
+            # Create and save project summary with full code
+            progress_bar.set_description("Generating project summary")
+            self.create_project_summary(updated_requirements)
+            progress_bar.update(1)
+            
+            print(f"\nProject summary with full code has been created in the markdown folder.")
             
             progress_bar.close()
 

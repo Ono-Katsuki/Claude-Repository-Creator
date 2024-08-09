@@ -205,212 +205,7 @@ def create_json_update_prompt(current_requirements, project_description):
     7. Verify that all features have clear and testable acceptance criteria.
     """
 
-def create_json_completion_prompt(parsed_part, unparsed_part, project_description):
-    return f"""
-Project Description:
-{project_description}
-
-Based on the above project description and the following incomplete JSON, complete ONLY the missing part:
-
-Parsed part (DO NOT modify or repeat this part):
-{parsed_part}
-
-Unparsed part (Complete from here):
-{unparsed_part}
-
-Instructions:
-1. Generate ONLY the missing part of the JSON, starting from where the unparsed part begins.
-2. Ensure the generated part is consistent with the structure and naming conventions in the parsed part.
-3. DO NOT repeat any information already present in the parsed part.
-4. The output should be a valid JSON fragment that, when combined with the parsed part, forms a complete and valid JSON object.
-5. Make sure the completed JSON aligns with the project description and requirements.
-6. DO NOT include any explanations, comments, or additional text. Provide ONLY the JSON fragment.
-
-Remember:
-- Include a main file (e.g., main.js, index.js) in the appropriate location if not already present.
-- Ensure all necessary dependencies are included.
-- Verify that the folder structure is logical and follows best practices for the chosen tech stack.
-- Make sure all function and method calls are correct and consistent.
-- Add any missing critical components for the project to function properly.
-- Ensure the tech stack is appropriate for the project description.
-- Verify that all features have clear and testable acceptance criteria.
-
-IMPORTANT: Produce ONLY the JSON fragment for the missing part. DO NOT include any additional text, explanations, or the parsed part in your response.
-
-Example input:
-Parsed part:
-{{
-  "project_name": "Example Project",
-  "description": "This is an example project description.",
-  "features": [
-    {{
-      "name": "Feature 1",
-      "description": "Description of Feature 1",
-      "acceptance_criteria": [
-        "Criterion 1",
-        "Criterion 2"
-      ]
-    }}
-  ],
-  "tech_stack": [
-    "Technology 1",
-    "Technology 2"
-  ],
-  "folder_structure": {{
-    "backend": {{
-      "subfolders": {{
-        "src": {{
-          "subfolders": {{
-            "controllers": {{
-              "files": [
-                {{
-                  "name": "exampleController.js",
-                  "type": "function",
-                  "description": "Example controller",
-                  "properties": [],
-                  "methods": [
-                    {{
-                      "name": "exampleMethod",
-                      "params": ["param1", "param2"],
-                      "return_type": "object",
-                      "description": "Example method description"
-                    }}
-                  ]
-                }}
-              ]
-            }}
-          }}
-        }}
-      }}
-    }}
-  }}
-}}
-
-Unparsed part:
-,
-    "frontend": {{
-      "subfolders": {{
-        "src": {{
-          "subfolders": {{
-            "components": {{
-              "files": [
-                {{
-                  "name": "ExampleComponent.js",
-                  "type": "component",
-                  "description": "Example component",
-                  "properties": ["exampleProp"],
-                  "methods": [
-                    {{
-                      "name": "render",
-                      "params": [],
-                      "return_type": "JSX.Element",
-                      "description": "Renders the component"
-                    }}
-                  ]
-                }}
-              ]
-            }}
-          }}
-        }}
-      }}
-    }}
-  }}
-
-Example output:
-,
-    "frontend": {{
-      "subfolders": {{
-        "src": {{
-          "subfolders": {{
-            "components": {{
-              "files": [
-                {{
-                  "name": "ExampleComponent.js",
-                  "type": "component",
-                  "description": "Example component",
-                  "properties": ["exampleProp"],
-                  "methods": [
-                    {{
-                      "name": "render",
-                      "params": [],
-                      "return_type": "JSX.Element",
-                      "description": "Renders the component"
-                    }}
-                  ]
-                }},
-                {{
-                  "name": "AnotherComponent.js",
-                  "type": "component",
-                  "description": "Another example component",
-                  "properties": ["prop1", "prop2"],
-                  "methods": [
-                    {{
-                      "name": "handleClick",
-                      "params": ["event"],
-                      "return_type": "void",
-                      "description": "Handles click events"
-                    }}
-                  ]
-                }}
-              ]
-            }},
-            "utils": {{
-              "files": [
-                {{
-                  "name": "helpers.js",
-                  "type": "function",
-                  "description": "Helper functions",
-                  "properties": [],
-                  "methods": [
-                    {{
-                      "name": "formatData",
-                      "params": ["data"],
-                      "return_type": "object",
-                      "description": "Formats data for display"
-                    }}
-                  ]
-                }}
-              ]
-            }}
-          }},
-          "files": [
-            {{
-              "name": "App.js",
-              "type": "component",
-              "description": "Root component of the application",
-              "properties": [],
-              "methods": [
-                {{
-                  "name": "render",
-                  "params": [],
-                  "return_type": "JSX.Element",
-                  "description": "Renders the main application structure"
-                }}
-              ]
-            }},
-            {{
-              "name": "index.js",
-              "type": "function",
-              "description": "Entry point of the application",
-              "properties": [],
-              "methods": [
-                {{
-                  "name": "render",
-                  "params": [],
-                  "return_type": "void",
-                  "description": "Renders the app to the DOM"
-                }}
-              ]
-            }}
-          ]
-        }}
-      }}
-    }}
-  }}
-"""
-
-
-def create_code_generation_prompt(feature, file_info, language):
+def create_code_generation_prompt(feature, file_content, file_name, language):
     feature_info = ""
     if feature:
         feature_info = f"""
@@ -422,17 +217,14 @@ def create_code_generation_prompt(feature, file_info, language):
     
     return f"""
     Generate complete code for a {language} file based on the following information:
-
     {feature_info}
-
     File Information:
-    Name: {file_info.name}
-    Type: {file_info.content.type}
-    Description: {file_info.content.description}
-    Properties: {', '.join(file_info.content.properties)}
+    Name: {file_name}
+    Type: {file_content.type}
+    Description: {file_content.description}
+    Properties: {', '.join(file_content.properties)}
     Methods:
-    {format_methods(file_info.content.methods)}
-
+    {format_methods(file_content.methods)}
     Important Instructions:
     1. Generate ONLY the complete code without any explanations, placeholders, or TODOs.
     2. Include ALL specified properties and methods.
@@ -443,8 +235,7 @@ def create_code_generation_prompt(feature, file_info, language):
     7. Ensure the code is production-ready and follows best practices for {language}.
     8. For HTML, provide the complete structure; for CSS, include all relevant styles.
     9. For React or similar frameworks, include full state management and lifecycle methods as necessary.
-    10. Do not generate code for image or audio files.
-
+    10. Absolutely avoid hallucinations.
     Output the complete code directly without any markdown formatting or code blocks.
     """
 
@@ -456,7 +247,7 @@ def create_code_generation_system_prompt(language):
     The code must be complete and fully functional, without any placeholders or TODOs.
     Do not include any text outside of the actual code.
     If the specified language is not one you're familiar with, use general programming best practices to create a logical implementation.
-    Do not generate code for image or audio files.
+    Absolutely avoid hallucinations.
     """
 
 def format_acceptance_criteria(criteria):

@@ -52,7 +52,7 @@ class RepositoryCreator:
             
             async def generate_code(file: File, file_path: str, feature: Feature = None):
                 try:
-                    feature_code = await code_generator.generate_feature_code(feature, file.content)
+                    feature_code = await code_generator.generate_feature_code(feature, file)
                     if feature_code is None:
                         return file.name, None
                     

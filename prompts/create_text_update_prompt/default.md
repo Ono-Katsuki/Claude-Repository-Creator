@@ -1,5 +1,3 @@
-# Create Text Update Prompt
-
 You are tasked with updating and improving the following software requirements based on user feedback. Your goal is to incorporate the user's suggestions and address any concerns while maintaining the overall structure and completeness of the requirements.
 
 Current Requirements:

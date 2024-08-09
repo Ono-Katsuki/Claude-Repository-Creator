@@ -3,10 +3,10 @@ import asyncio
 import logging
 import re
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from tqdm import tqdm
 from repository_models import Requirements, Feature, File, Folder, FileContent
-from prompts import create_code_generation_prompt, create_code_generation_system_prompt
+from prompt_manager import prompt_manager
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +24,35 @@ class CodeGenerator:
             return 'react native'
         return language
 
-    async def generate_feature_code(self, feature: Optional[Feature], file: File, max_retries: int = 3) -> Optional[str]:
-        language = self._normalize_language(self.tech_stack[0])
+    def _select_prompt(self, prompt_category):
+        prompts = prompt_manager.list_prompts()
+        category_prompts = [p for p in prompts if p[0] == prompt_category]
+        
+        print(f"\nAvailable {prompt_category} prompts:")
+        for i, (_, name) in enumerate(category_prompts, 1):
+            print(f"{i}. {name}.md")
+        
+        while True:
+            try:
+                choice = int(input("Enter the number of the prompt you want to use: ")) - 1
+                if 0 <= choice < len(category_prompts):
+                    return category_prompts[choice][1]
+                else:
+                    print("Invalid choice. Please try again.")
+            except ValueError:
+                print("Please enter a number.")
 
-        prompt = create_code_generation_prompt(feature, file.content, file.name, language)
-        system_prompt = create_code_generation_system_prompt(language)
+    async def generate_feature_code(self, feature: Optional[Feature], file: File, prompts: Tuple[str, str], max_retries: int = 3) -> Optional[str]:
+        language = self._normalize_language(self.tech_stack[0])
+        code_prompt_name, system_prompt_name = prompts
+
+        prompt = prompt_manager.get_prompt('create_code_generation_prompt', code_prompt_name, 
+                                           language=language, 
+                                           feature_info=feature.model_dump() if feature else None,
+                                           file_name=file.name,
+                                           file_content=file.content.model_dump() if file.content else None)
+
+        system_prompt = prompt_manager.get_prompt('create_code_generation_system_prompt', system_prompt_name, language=language)
 
         for attempt in range(max_retries):
             try:
@@ -112,13 +136,13 @@ class CodeGenerator:
         normalized_language = self._normalize_language(language)
         return extensions.get(normalized_language, '.txt')
 
-    async def generate_code_for_features(self, requirements: Requirements) -> Dict[str, Optional[str]]:
+    async def generate_code_for_features(self, requirements: Requirements, prompts: Tuple[str, str]) -> Dict[str, Optional[str]]:
         async def process_folder(folder: Folder, feature: Optional[Feature] = None, path: str = "") -> Dict[str, Optional[str]]:
             results = {}
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
                     file_feature = feature or next((f for f in requirements.features if f.name.lower().replace(' ', '_') == folder.name), None)
-                    code = await self.generate_feature_code(file_feature, file)
+                    code = await self.generate_feature_code(file_feature, file, prompts)
                     file_path = os.path.join(path, file.name)
                     results[file_path] = code
                     if code:
@@ -158,7 +182,15 @@ class CodeGenerator:
     async def generate_project_code(self, requirements: Requirements) -> Dict[str, Optional[str]]:
         try:
             logger.info(f"Starting code generation for project: {requirements.project_name}")
-            code_results = await self.generate_code_for_features(requirements)
+            
+            # Select prompts
+            code_prompt_name = self._select_prompt('create_code_generation_prompt')
+            system_prompt_name = self._select_prompt('create_code_generation_system_prompt')
+            prompts = (code_prompt_name, system_prompt_name)
+            
+            # Generate code using the selected prompts
+            code_results = await self.generate_code_for_features(requirements, prompts)
+            
             logger.info(f"Code generation completed for project: {requirements.project_name}")
             return code_results
         except Exception as e:

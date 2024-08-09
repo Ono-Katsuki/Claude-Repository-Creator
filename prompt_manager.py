@@ -54,7 +54,14 @@ class PromptManager:
                 # If the placeholder doesn't exist, add it at the beginning with the clear format
                 prompt = f"{key}: {value}\n\n{prompt}"
         
-        return prompt.strip()
+        final_prompt = prompt.strip()
+        
+        # Print the final prompt for debugging
+        print("===== Final Prompt =====")
+        print(final_prompt)
+        print("===== End of Prompt =====")
+        
+        return final_prompt
 
     def list_prompts(self) -> List[Tuple[str, str]]:
         prompt_list = []

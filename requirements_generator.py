@@ -1,159 +1,51 @@
-import json
 import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, Any, Tuple
+from typing import Union, Type 
+from pydantic import BaseModel 
+from openai import AsyncOpenAI
 from prompts import (
     create_text_requirements_prompt,
     create_text_update_prompt,
     create_json_requirements_prompt,
-    create_json_update_prompt,
-    create_json_completion_prompt
+    create_json_update_prompt
 )
+from repository_models import Requirements
 
 logger = logging.getLogger(__name__)
 
 class RequirementsGenerator:
-    def __init__(self, api_key):
-        self.claude_client = anthropic.AsyncAnthropic(api_key=api_key)
+    def __init__(self, claude_api_key: str, openai_api_key: str):
+        self.claude_client = anthropic.AsyncAnthropic(api_key=claude_api_key)
+        self.openai_client = AsyncOpenAI(api_key=openai_api_key)
 
-    async def generate_text_requirements(self, user_request):
+    async def generate_text_requirements(self, user_request: str) -> str:
         logger.info("Generating text requirements...")
         prompt = create_text_requirements_prompt(user_request)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    def _extract_text_requirements(self, response):
+    def _extract_text_requirements(self, response: str) -> str:
         match = re.search(r'<detailed_requirements>(.*?)</detailed_requirements>', response, re.DOTALL)
         return match.group(1).strip() if match else None
 
-    async def update_text_requirements(self, current_requirements, user_feedback):
+    async def update_text_requirements(self, current_requirements: str, user_feedback: str) -> str:
         logger.info("Updating text requirements based on user feedback...")
         prompt = create_text_update_prompt(current_requirements, user_feedback)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    async def generate_json_requirements(self, project_description):
-        logger.info("Generating JSON requirements...")
+    async def generate_structured_requirements(self, project_description: str) -> Requirements:
+        logger.info("Generating structured requirements...")
         prompt = create_json_requirements_prompt(project_description)
-        requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
-        return await self._ensure_complete_json(requirements, project_description)
+        return await self._execute_openai_request(prompt, Requirements)
 
-    async def _extract_json_requirements(self, response: str) -> Dict[str, Any]:
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group()
-            try:
-                requirements = json.loads(json_str)
-                self._validate_json_structure(requirements)
-                return requirements
-            except json.JSONDecodeError:
-                return json_str
-        else:
-            raise ValueError("No JSON found in the response")
+    async def update_structured_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
+        logger.info("Updating structured requirements...")
+        current_requirements_json = current_requirements.model_dump_json(indent=2)
+        prompt = create_json_update_prompt(current_requirements_json, project_description)
+        return await self._execute_openai_request(prompt, Requirements)
 
-    def _validate_json_structure(self, requirements: Dict[str, Any]) -> None:
-        required_keys = ["project_name", "description", "features", "tech_stack", "folder_structure"]
-        missing_keys = [key for key in required_keys if key not in requirements]
-        if missing_keys:
-            raise ValueError(f"JSON is missing required keys: {', '.join(missing_keys)}")
-
-    async def _ensure_complete_json(self, requirements, project_description):
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                if isinstance(requirements, str):
-                    requirements = await self._complete_truncated_json(requirements, project_description)
-                self._validate_json_structure(requirements)
-                self._validate_json_content(requirements)
-                return requirements
-            except (json.JSONDecodeError, ValueError) as e:
-                if attempt == max_attempts - 1:
-                    raise ValueError(f"Failed to generate complete JSON after {max_attempts} attempts: {str(e)}") from e
-                requirements = json.dumps(requirements) if isinstance(requirements, dict) else requirements
-
-    def _validate_json_content(self, json_obj: Dict[str, Any]) -> None:
-        if not isinstance(json_obj.get("features"), list) or len(json_obj["features"]) == 0:
-            raise ValueError("'features' must be a non-empty list")
-        if not isinstance(json_obj.get("tech_stack"), list) or len(json_obj["tech_stack"]) == 0:
-            raise ValueError("'tech_stack' must be a non-empty list")
-        if not isinstance(json_obj.get("folder_structure"), dict) or len(json_obj["folder_structure"]) == 0:
-            raise ValueError("'folder_structure' must be a non-empty dictionary")
-
-    async def _complete_truncated_json(self, incomplete_json: str, project_description: str) -> Dict[str, Any]:
-        try:
-            parsed_part, unparsed_part = self._partial_parse(incomplete_json)
-            completion_prompt = create_json_completion_prompt(
-                json.dumps(parsed_part, indent=2),
-                unparsed_part,
-                project_description
-            )
-            completion = await self._execute_claude_request(completion_prompt, lambda x: x)
-            cleaned_completion = self._clean_completion(completion)
-            combined_json = self._combine_json(parsed_part, cleaned_completion)
-            return json.loads(combined_json)
-        except json.JSONDecodeError as e:
-            repaired_json = self._repair_json(combined_json)
-            return json.loads(repaired_json)
-        except Exception as e:
-            raise ValueError(f"Unable to complete the truncated JSON: {str(e)}") from e
-
-    def _clean_completion(self, completion: str) -> str:
-        cleaned = completion.strip()
-        cleaned = re.sub(r'^,\s*', '', cleaned)
-        cleaned = re.sub(r',\s*$', '', cleaned)
-        if cleaned.startswith('{'):
-            cleaned = cleaned[1:]
-        if cleaned.endswith('}'):
-            cleaned = cleaned[:-1]
-        return cleaned.strip()
-
-    def _combine_json(self, parsed_part: Dict[str, Any], completion: str) -> str:
-        if not parsed_part:
-            return '{' + completion + '}'
-        base_json = json.dumps(parsed_part)[:-1]
-        if not base_json.endswith(',') and not completion.startswith(','):
-            base_json += ','
-        return base_json + completion + '}'
-
-    def _repair_json(self, invalid_json: str) -> str:
-        repaired = re.sub(r'^\s*,*\s*', '', invalid_json)
-        repaired = re.sub(r',\s*}', '}', repaired)
-        repaired = re.sub(r',\s*]', ']', repaired)
-        repaired = re.sub(r'(\w+)(?=\s*:)', r'"\1"', repaired)
-        if not repaired.startswith('{'):
-            repaired = '{' + repaired
-        if not repaired.endswith('}'):
-            repaired += '}'
-        return repaired
-
-    def _partial_parse(self, incomplete_json: str) -> Tuple[Dict[str, Any], str]:
-        parsed = {}
-        unparsed = incomplete_json.strip()
-        if unparsed.startswith('{,'):
-            unparsed = '{' + unparsed[2:]
-        try:
-            parsed = json.loads(unparsed)
-            return parsed, ""
-        except json.JSONDecodeError as e:
-            valid_part = unparsed[:e.pos]
-            remaining_part = unparsed[e.pos:]
-            last_valid_pos = valid_part.rfind('}')
-            if last_valid_pos != -1:
-                valid_part = valid_part[:last_valid_pos+1]
-                remaining_part = unparsed[last_valid_pos+1:]
-            try:
-                parsed = json.loads(valid_part)
-            except json.JSONDecodeError:
-                parsed = {}
-            return parsed, remaining_part
-
-    async def update_json_requirements(self, current_requirements, project_description):
-        logger.info("Updating JSON requirements...")
-        prompt = create_json_update_prompt(json.dumps(current_requirements, indent=2), project_description)
-        updated_requirements = await self._execute_claude_request(prompt, self._extract_json_requirements)
-        return await self._ensure_complete_json(updated_requirements, project_description)
-
-    async def _execute_claude_request(self, prompt, extract_function):
+    async def _execute_claude_request(self, prompt: str, extract_function: callable) -> str:
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -191,20 +83,43 @@ class RequirementsGenerator:
                 else:
                     raise ValueError(f"Failed to execute Claude request after {max_retries} attempts: {str(e)}")
 
-    async def generate_requirements(self, project_description, output_format="json"):
+    async def _execute_openai_request(self, prompt: str, response_model: Type[BaseModel]) -> BaseModel:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                completion = await self.openai_client.beta.chat.completions.parse(
+                    model="gpt-4o-2024-08-06",
+                    messages=[
+                        {"role": "system", "content": "You are an AI assistant specialized in software development and requirements analysis. Provide detailed and structured responses."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format=response_model,
+                )
+                return completion.choices[0].message.parsed
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise ValueError(f"Failed to execute OpenAI request after {max_retries} attempts: {str(e)}")
+
+    async def generate_requirements(self, project_description: str, output_format: str = "structured") -> Union[str, Requirements]:
         logger.info(f"Generating requirements in {output_format} format...")
-        if output_format.lower() == "json":
-            return await self.generate_json_requirements(project_description)
+        if output_format.lower() == "structured":
+            return await self.generate_structured_requirements(project_description)
         elif output_format.lower() == "text":
             return await self.generate_text_requirements(project_description)
         else:
-            raise ValueError("Invalid output format. Choose 'json' or 'text'.")
+            raise ValueError("Invalid output format. Choose 'structured' or 'text'.")
 
-    async def update_requirements(self, current_requirements, project_description, output_format="json"):
+    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "structured") -> Union[str, Requirements]:
         logger.info(f"Updating requirements in {output_format} format...")
-        if output_format.lower() == "json":
-            return await self.update_json_requirements(current_requirements, project_description)
+        if output_format.lower() == "structured":
+            if isinstance(current_requirements, str):
+                current_requirements = Requirements.parse_raw(current_requirements)
+            return await self.update_structured_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":
+            if isinstance(current_requirements, Requirements):
+                current_requirements = current_requirements.model_dump_json(indent=2)
             return await self.update_text_requirements(current_requirements, project_description)
         else:
-            raise ValueError("Invalid output format. Choose 'json' or 'text'.")
+            raise ValueError("Invalid output format. Choose 'structured' or 'text'.")

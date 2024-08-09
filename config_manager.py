@@ -13,7 +13,8 @@ class ConfigManager:
 
     def create_default_config(self):
         default_config = {
-            'api_key': '',
+            'claude_api_key': '',
+            'openai_api_key': '',
             'version_control': 'git',
             'cache_expiration': 3600  # 1時間
         }
@@ -24,3 +25,22 @@ class ConfigManager:
     def save_config(self, config):
         with open(self.config_file, 'w') as f:
             json.dump(config, f, indent=2)
+
+    def update_api_key(self, api_type, new_key):
+        config = self.load_config()
+        if api_type == 'claude':
+            config['claude_api_key'] = new_key
+        elif api_type == 'openai':
+            config['openai_api_key'] = new_key
+        else:
+            raise ValueError("Invalid API type. Use 'claude' or 'openai'.")
+        self.save_config(config)
+
+    def get_api_key(self, api_type):
+        config = self.load_config()
+        if api_type == 'claude':
+            return config.get('claude_api_key', '')
+        elif api_type == 'openai':
+            return config.get('openai_api_key', '')
+        else:
+            raise ValueError("Invalid API type. Use 'claude' or 'openai'.")

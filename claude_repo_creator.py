@@ -12,11 +12,13 @@ from requirements_generator import RequirementsGenerator
 from repository_creator import RepositoryCreator
 from markdown_generator import MarkdownGenerator
 from requirements_manager import RequirementsManager
+from repository_models import Requirements
 
 logger = logging.getLogger(__name__)
 
 class ClaudeRepoCreator:
     def __init__(self, debug_mode=False):
+        self.config_manager = ConfigManager()
         self.config = self.load_config()
         self.claude_client = None
         self.repo_generator = RepoGenerator()
@@ -30,8 +32,11 @@ class ClaudeRepoCreator:
         self.debug_mode = debug_mode
         if self.debug_mode:
             logging.getLogger().setLevel(logging.DEBUG)
-        self.requirements_generator = RequirementsGenerator(self.config['api_key'])
-        self.repository_creator = RepositoryCreator(self.config['api_key'])
+        self.requirements_generator = RequirementsGenerator(
+            self.config['claude_api_key'],
+            self.config['openai_api_key']
+        )
+        self.repository_creator = RepositoryCreator(self.config['claude_api_key'])
         self.markdown_generator = MarkdownGenerator()
         self.requirements_manager = RequirementsManager(self.requirements_folder)
 
@@ -43,16 +48,18 @@ class ClaudeRepoCreator:
             await self.claude_client.close()
 
     def load_config(self):
-        config_manager = ConfigManager()
-        config = config_manager.load_config()
-        if not config.get('api_key'):
-            config['api_key'] = self.prompt_for_api_key()
-            config_manager.save_config(config)
+        config = self.config_manager.load_config()
+        if not config.get('claude_api_key'):
+            config['claude_api_key'] = self.prompt_for_api_key('Claude')
+            self.config_manager.save_config(config)
+        if not config.get('openai_api_key'):
+            config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
+            self.config_manager.save_config(config)
         return config
 
-    def prompt_for_api_key(self):
+    def prompt_for_api_key(self, api_type):
         while True:
-            api_key = input("Please enter your Claude API key: ").strip()
+            api_key = input(f"Please enter your {api_type} API key: ").strip()
             if api_key:
                 confirm = input("Is this correct? (y/n): ").lower()
                 if confirm == 'y':
@@ -71,20 +78,20 @@ class ClaudeRepoCreator:
         os.makedirs(self.current_project_folder, exist_ok=True)
         logger.info(f"Created project folder: {self.current_project_folder}")
 
-    def save_requirements(self, requirements, file_path):
+    def save_requirements(self, requirements: Requirements, file_path: str):
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(requirements, f, ensure_ascii=False, indent=2)
+            json.dump(requirements.model_dump(), f, ensure_ascii=False, indent=2)
         logger.info(f"Saved requirements to: {file_path}")
 
-    def create_project_summary(self, requirements):
-        summary_filename = f"{requirements['project_name']}_summary.md"
+    def create_project_summary(self, requirements: Requirements):
+        summary_filename = f"{requirements.project_name}_summary.md"
         summary_path = os.path.join(self.markdown_folder, summary_filename)
-        self.markdown_generator.create_project_summary(requirements, self.repo_generator.repo_folder, summary_path)
+        self.markdown_generator.create_project_summary(requirements.model_dump(), self.repo_generator.repo_folder, summary_path)
         logger.info(f"Created project summary: {summary_path}")
 
     def prompt_user_action(self):
         while True:
-            action = input("\nWhat would you like to do? (1: Generate a new project, 2: Change API key, 3: Exit): ")
+            action = input("\nWhat would you like to do? (1: Generate a new project, 2: Change API keys, 3: Exit): ")
             if action in ['1', '2', '3']:
                 return action
             else:
@@ -138,45 +145,41 @@ class ClaudeRepoCreator:
                 else:
                     print("Invalid choice. Please enter 1, 2, or 3.")
 
-            # Generate JSON requirements
-            progress_bar.set_description("Generating JSON requirements")
-            json_requirements = await self.requirements_generator.generate_json_requirements(detailed_requirements)
+            # Generate structured requirements
+            progress_bar.set_description("Generating structured requirements")
+            requirements = await self.requirements_generator.generate_structured_requirements(detailed_requirements)
             progress_bar.update(1)
             
-            # Update JSON requirements using _create_json_update_prompt
-            progress_bar.set_description("Refining JSON requirements")
-            updated_json_requirements = await self.requirements_generator.update_json_requirements(json_requirements, detailed_requirements)
+            # Update structured requirements
+            progress_bar.set_description("Refining structured requirements")
+            updated_requirements = await self.requirements_generator.update_structured_requirements(requirements, detailed_requirements)
+            progress_bar.update(1)
+        
+            new_project_name = updated_requirements.project_name
+            new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
+            
+            # Save updated requirements to JSON file
+            self.save_requirements(updated_requirements, new_cache_path)
+            
+            self.create_project_folder(new_project_name)
+            
+            # Update temporary project name to actual project name
+            os.rename(os.path.join(self.requirements_folder, temp_project_name),
+                      os.path.join(self.requirements_folder, new_project_name))
+            
+            # Create repository
+            progress_bar.set_description("Creating repository")
+            await self.repository_creator.create_repository(updated_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
             progress_bar.update(1)
             
-            # Ensure updated_json_requirements is a dict, not a coroutine
-            if isinstance(updated_json_requirements, dict):
-                new_project_name = updated_json_requirements['project_name']
-                new_cache_path = os.path.join(self.cache_folder, f'{new_project_name}_requirements.json')
-                
-                # Save updated requirements to JSON file
-                self.save_requirements(updated_json_requirements, new_cache_path)
-                
-                self.create_project_folder(new_project_name)
-                
-                # Update temporary project name to actual project name
-                os.rename(os.path.join(self.requirements_folder, temp_project_name),
-                          os.path.join(self.requirements_folder, new_project_name))
-                
-                # Create repository
-                progress_bar.set_description("Creating repository")
-                await self.repository_creator.create_repository(updated_json_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
-                progress_bar.update(1)
-                
-                print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
-                
-                # Create and save project summary with full code
-                progress_bar.set_description("Generating project summary")
-                self.create_project_summary(updated_json_requirements)
-                progress_bar.update(1)
-                
-                print(f"\nProject summary with full code has been created in the markdown folder.")
-            else:
-                raise ValueError("Invalid JSON requirements format")
+            print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
+            
+            # Create and save project summary with full code
+            progress_bar.set_description("Generating project summary")
+            self.create_project_summary(updated_requirements)
+            progress_bar.update(1)
+            
+            print(f"\nProject summary with full code has been created in the markdown folder.")
             
             progress_bar.close()
 
@@ -193,11 +196,15 @@ class ClaudeRepoCreator:
             if action == '1':
                 await self.generate_project()
             elif action == '2':
-                new_api_key = self.prompt_for_api_key()
-                self.config['api_key'] = new_api_key
-                self.requirements_generator = RequirementsGenerator(new_api_key)
-                self.repository_creator = RepositoryCreator(new_api_key)
-                print("\nAPI key updated.")
+                self.config['claude_api_key'] = self.prompt_for_api_key('Claude')
+                self.config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
+                self.config_manager.save_config(self.config)
+                self.requirements_generator = RequirementsGenerator(
+                    self.config['claude_api_key'],
+                    self.config['openai_api_key']
+                )
+                self.repository_creator = RepositoryCreator(self.config['claude_api_key'])
+                print("\nAPI keys updated.")
             elif action == '3':
                 print("Exiting the program. Goodbye!")
                 break

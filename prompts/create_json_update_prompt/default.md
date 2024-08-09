@@ -1,5 +1,3 @@
-# Create JSON Update Prompt
-
 Evaluate and improve the following project requirements:
 Provide the improved requirements in the same JSON format as the input.
 Produce only the JSON without any comments or additional text.

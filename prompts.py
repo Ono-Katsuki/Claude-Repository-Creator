@@ -176,7 +176,7 @@ def create_json_requirements_prompt(project_description):
     }}
     """
 
-def create_json_update_prompt(current_requirements, project_description):
+def create_json_update_prompt(current_requirements, project_description, user_feedback):
     return f"""
     Evaluate and improve the following project requirements:
     Provide the improved requirements in the same JSON format as the input.
@@ -195,6 +195,9 @@ def create_json_update_prompt(current_requirements, project_description):
     Current Requirements:
     {current_requirements}
 
+    User Feedback:
+    {user_feedback}
+
     Please analyze these requirements and make the following improvements:
     1. Ensure there is a main file (e.g., main.py, index.js) in the appropriate location.
     2. Check that all necessary dependencies are included.
@@ -203,6 +206,9 @@ def create_json_update_prompt(current_requirements, project_description):
     5. Add any missing critical components for the project to function properly.
     6. Ensure the tech stack is appropriate for the project description.
     7. Verify that all features have clear and testable acceptance criteria.
+    8. Address all points mentioned in the user feedback.
+    9. If the user feedback introduces new features or major changes, integrate them seamlessly into the existing structure.
+    10. If the user feedback is vague or unclear, make reasonable assumptions and incorporate them into the requirements.
     """
 
 def create_code_generation_prompt(feature, file_content, file_name, language):

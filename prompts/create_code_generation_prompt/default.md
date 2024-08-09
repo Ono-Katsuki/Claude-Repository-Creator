@@ -1,5 +1,3 @@
-# Create Code Generation Prompt
-
 Generate complete code for a {language} file based on the following information:
 {feature_info}
 File Information:

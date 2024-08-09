@@ -24,10 +24,10 @@ class CodeGenerator:
             return 'react native'
         return language
 
-    async def generate_feature_code(self, feature: Optional[Feature], file_content: FileContent, file_name: str, max_retries: int = 3) -> Optional[str]:
+    async def generate_feature_code(self, feature: Optional[Feature], file: File, max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
 
-        prompt = create_code_generation_prompt(feature, file_content, file_name, language)
+        prompt = create_code_generation_prompt(feature, file.content, file.name, language)
         system_prompt = create_code_generation_system_prompt(language)
 
         for attempt in range(max_retries):
@@ -53,14 +53,14 @@ class CodeGenerator:
                 processed_code = self._process_code_response(response)
                 if processed_code:
                     return processed_code
-                logger.warning(f"No valid code found in response for {file_name} (attempt {attempt + 1}/{max_retries})")
+                logger.warning(f"No valid code found in response for {file.name} (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
-                logger.error(f"Error occurred during code generation for {file_name} (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(f"Error occurred during code generation for {file.name} (attempt {attempt + 1}/{max_retries}): {str(e)}")
             
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
         
-        logger.error(f"Failed to generate code for {file_name} after {max_retries} attempts")
+        logger.error(f"Failed to generate code for {file.name} after {max_retries} attempts")
         return None
 
     def _process_code_response(self, response: str) -> Optional[str]:
@@ -87,6 +87,7 @@ class CodeGenerator:
 
     def write_code_to_file(self, file_path: str, code: str) -> None:
         try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(code)
             logger.info(f"Code written to file: {file_path}")
@@ -112,16 +113,20 @@ class CodeGenerator:
         return extensions.get(normalized_language, '.txt')
 
     async def generate_code_for_features(self, requirements: Requirements) -> Dict[str, Optional[str]]:
-        async def process_folder(folder: Folder, feature: Optional[Feature] = None) -> Dict[str, Optional[str]]:
+        async def process_folder(folder: Folder, feature: Optional[Feature] = None, path: str = "") -> Dict[str, Optional[str]]:
             results = {}
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
                     file_feature = feature or next((f for f in requirements.features if f.name.lower().replace(' ', '_') == folder.name), None)
-                    code = await self.generate_feature_code(file_feature, file.content, file.name)
-                    results[file.name] = code
+                    code = await self.generate_feature_code(file_feature, file)
+                    file_path = os.path.join(path, file.name)
+                    results[file_path] = code
+                    if code:
+                        self.write_code_to_file(file_path, code)
 
             for subfolder in folder.subfolders:
-                subfolder_results = await process_folder(subfolder, feature)
+                subfolder_path = os.path.join(path, subfolder.name)
+                subfolder_results = await process_folder(subfolder, feature, subfolder_path)
                 results.update(subfolder_results)
 
             return results

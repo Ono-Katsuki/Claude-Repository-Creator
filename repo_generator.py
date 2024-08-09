@@ -1,7 +1,8 @@
 import os
 import logging
 import shutil
-from typing import Dict, Any, List
+from typing import List
+from repository_models import Folder, File, Requirements
 
 logger = logging.getLogger(__name__)
 
@@ -91,55 +92,36 @@ class RepoGenerator:
         os.makedirs(self.repo_folder, exist_ok=True)
         logger.info(f"Created new repository folder: {self.repo_folder}")
 
-    def create_structure(self, folder_structure: Dict[str, Any], base_path: str = None):
-        """Creates folder structure and files based on the Requirements model."""
+    def create_structure(self, folder_structure: Folder, base_path: str = None):
+        """Creates folder structure and files based on the Folder model."""
         base_path = base_path or self.repo_folder
         
-        for file in folder_structure.get('files', []):
-            file_path = os.path.join(base_path, file['name'])
+        for file in folder_structure.files:
+            file_path = os.path.join(base_path, file.name)
             with open(file_path, 'w') as f:
-                f.write(f"# TODO: Implement {file['name']}\n")
-                f.write(f"# Type: {file['type']}\n")
-                f.write(f"# Description: {file['description']}\n")
-                
-                if file['type'] == 'class':
-                    f.write("\nclass ClassName:\n")
-                    for prop in file.get('properties', []):
-                        f.write(f"    {prop}\n")
-                    for method in file.get('methods', []):
-                        f.write(f"    def {method['name']}({', '.join(method['params'])}):\n")
-                        f.write(f"        # TODO: Implement {method['name']}\n")
-                        f.write(f"        # {method['description']}\n")
-                        f.write(f"        pass\n\n")
-                elif file['type'] == 'function':
-                    f.write("\ndef function_name():\n")
-                    f.write("    # TODO: Implement function\n")
-                    f.write("    pass\n")
-                elif file['type'] == 'component':
-                    f.write("\ndef Component():\n")
-                    f.write("    # TODO: Implement component\n")
-                    f.write("    return None\n")
-                
+                f.write(f"# TODO: Implement {file.name}\n")
+                f.write(f"# Type: {file.content.type}\n")
+                f.write(f"# Description: {file.content.description}\n")
             logger.info(f"Created file: {file_path}")
         
-        for subfolder in folder_structure.get('subfolders', []):
-            subfolder_path = os.path.join(base_path, subfolder['name'])
+        for subfolder in folder_structure.subfolders:
+            subfolder_path = os.path.join(base_path, subfolder.name)
             os.makedirs(subfolder_path, exist_ok=True)
             self.create_structure(subfolder, subfolder_path)
 
-    def create_readme(self, requirements: Dict[str, Any]):
+    def create_readme(self, requirements: Requirements):
         """Creates a README.md file with project information."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
             with open(readme_path, "w", encoding='utf-8') as f:
-                f.write(f"# {requirements['project_name']}\n\n")
-                f.write(f"{requirements['description']}\n\n")
+                f.write(f"# {requirements.project_name}\n\n")
+                f.write(f"{requirements.description}\n\n")
                 f.write("## Features\n\n")
-                for feature in requirements['features']:
-                    f.write(f"### {feature['name']}\n")
-                    f.write(f"{feature['description']}\n\n")
+                for feature in requirements.features:
+                    f.write(f"### {feature.name}\n")
+                    f.write(f"{feature.description}\n\n")
                     f.write("Acceptance Criteria:\n")
-                    for criteria in feature['acceptance_criteria']:
+                    for criteria in feature.acceptance_criteria:
                         f.write(f"- {criteria}\n")
                     f.write("\n")
             logger.info("README.md created successfully.")
@@ -166,62 +148,55 @@ class RepoGenerator:
         except IOError as e:
             logger.error(f"Error occurred while creating .gitignore: {str(e)}")
 
-    def get_current_structure(self, base_path: str = None) -> Dict[str, Any]:
+    def get_current_structure(self, base_path: str = None) -> Folder:
         """Recursively gets the current folder structure."""
         base_path = base_path or self.repo_folder
-        structure = {"files": [], "subfolders": []}
+        files = []
+        subfolders = []
         for item in os.listdir(base_path):
             item_path = os.path.join(base_path, item)
             if os.path.isdir(item_path):
-                subfolder = {
-                    "name": item,
-                    **self.get_current_structure(item_path)
-                }
-                structure["subfolders"].append(subfolder)
+                subfolders.append(self.get_current_structure(item_path))
             else:
-                structure["files"].append({
-                    "name": item,
-                    "type": "file",
-                    "description": "Auto-generated file"
-                })
-        return structure
+                files.append(File(name=item, content={"type": "file", "description": "Auto-generated file"}))
+        return Folder(name=os.path.basename(base_path), files=files, subfolders=subfolders)
 
-    def update_structure(self, current_structure: Dict[str, Any], updated_structure: Dict[str, Any], base_path: str = None):
+    def update_structure(self, current_structure: Folder, updated_structure: Folder, base_path: str = None):
         """Updates the existing structure based on the updated structure."""
         base_path = base_path or self.repo_folder
         
         # Update files
-        current_files = {f['name']: f for f in current_structure.get('files', [])}
-        for file in updated_structure.get('files', []):
-            if file['name'] not in current_files:
-                self.create_structure({"files": [file]}, base_path)
+        current_files = {f.name: f for f in current_structure.files}
+        for file in updated_structure.files:
+            if file.name not in current_files:
+                self.create_structure(Folder(name="temp", files=[file], subfolders=[]), base_path)
         
         # Remove files not in the updated structure
         for file in current_files.values():
-            if file['name'] not in [f['name'] for f in updated_structure.get('files', [])]:
-                os.remove(os.path.join(base_path, file['name']))
-                logger.info(f"Removed file: {file['name']}")
+            if file.name not in [f.name for f in updated_structure.files]:
+                os.remove(os.path.join(base_path, file.name))
+                logger.info(f"Removed file: {file.name}")
         
         # Update subfolders
-        current_subfolders = {f['name']: f for f in current_structure.get('subfolders', [])}
-        for subfolder in updated_structure.get('subfolders', []):
-            if subfolder['name'] in current_subfolders:
+        current_subfolders = {f.name: f for f in current_structure.subfolders}
+        for subfolder in updated_structure.subfolders:
+            if subfolder.name in current_subfolders:
                 self.update_structure(
-                    current_subfolders[subfolder['name']],
+                    current_subfolders[subfolder.name],
                     subfolder,
-                    os.path.join(base_path, subfolder['name'])
+                    os.path.join(base_path, subfolder.name)
                 )
             else:
-                os.makedirs(os.path.join(base_path, subfolder['name']), exist_ok=True)
-                self.create_structure(subfolder, os.path.join(base_path, subfolder['name']))
+                os.makedirs(os.path.join(base_path, subfolder.name), exist_ok=True)
+                self.create_structure(subfolder, os.path.join(base_path, subfolder.name))
         
         # Remove subfolders not in the updated structure
         for subfolder in current_subfolders.values():
-            if subfolder['name'] not in [f['name'] for f in updated_structure.get('subfolders', [])]:
-                shutil.rmtree(os.path.join(base_path, subfolder['name']))
-                logger.info(f"Removed folder: {subfolder['name']}")
+            if subfolder.name not in [f.name for f in updated_structure.subfolders]:
+                shutil.rmtree(os.path.join(base_path, subfolder.name))
+                logger.info(f"Removed folder: {subfolder.name}")
 
-    def update_readme(self, requirements: Dict[str, Any]):
+    def update_readme(self, requirements: Requirements):
         """Updates the existing README.md file."""
         try:
             readme_path = os.path.join(self.repo_folder, "README.md")
@@ -231,14 +206,14 @@ class RepoGenerator:
             with open(readme_path, "r+", encoding='utf-8') as f:
                 content = f.read()
                 f.seek(0)
-                f.write(f"# {requirements['project_name']}\n\n")
-                f.write(f"{requirements['description']}\n\n")
+                f.write(f"# {requirements.project_name}\n\n")
+                f.write(f"{requirements.description}\n\n")
                 f.write("## Features\n\n")
-                for feature in requirements['features']:
-                    f.write(f"### {feature['name']}\n")
-                    f.write(f"{feature['description']}\n\n")
+                for feature in requirements.features:
+                    f.write(f"### {feature.name}\n")
+                    f.write(f"{feature.description}\n\n")
                     f.write("Acceptance Criteria:\n")
-                    for criteria in feature['acceptance_criteria']:
+                    for criteria in feature.acceptance_criteria:
                         f.write(f"- {criteria}\n")
                     f.write("\n")
                 f.write(content.split("## Features")[1] if "## Features" in content else "")

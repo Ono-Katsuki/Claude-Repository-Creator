@@ -84,6 +84,12 @@ class RequirementsGenerator:
                     ]
                 )
                 response = message.content[0].text
+
+                # Print the full response from Claude
+                print("===== Claude AI Response =====")
+                print(response)
+                print("===== End of Response =====")
+
                 
                 if asyncio.iscoroutinefunction(extract_function):
                     result = await extract_function(response)

@@ -39,10 +39,10 @@ class RequirementsGenerator:
         prompt = create_json_requirements_prompt(project_description)
         return await self._execute_openai_request(prompt, Requirements)
 
-    async def update_structured_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
+    async def update_structured_requirements(self, current_requirements: Requirements, project_description: str, user_feedback: str) -> Requirements:
         logger.info("Updating structured requirements...")
         current_requirements_json = current_requirements.model_dump_json(indent=2)
-        prompt = create_json_update_prompt(current_requirements_json, project_description)
+        prompt = create_json_update_prompt(current_requirements_json, project_description, user_feedback)
         return await self._execute_openai_request(prompt, Requirements)
 
     async def _execute_claude_request(self, prompt: str, extract_function: callable) -> str:
@@ -111,15 +111,15 @@ class RequirementsGenerator:
         else:
             raise ValueError("Invalid output format. Choose 'structured' or 'text'.")
 
-    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "structured") -> Union[str, Requirements]:
+    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, user_feedback: str, output_format: str = "structured") -> Union[str, Requirements]:
         logger.info(f"Updating requirements in {output_format} format...")
         if output_format.lower() == "structured":
             if isinstance(current_requirements, str):
                 current_requirements = Requirements.parse_raw(current_requirements)
-            return await self.update_structured_requirements(current_requirements, project_description)
+            return await self.update_structured_requirements(current_requirements, project_description, user_feedback)
         elif output_format.lower() == "text":
             if isinstance(current_requirements, Requirements):
                 current_requirements = current_requirements.model_dump_json(indent=2)
-            return await self.update_text_requirements(current_requirements, project_description)
+            return await self.update_text_requirements(current_requirements, user_feedback)
         else:
             raise ValueError("Invalid output format. Choose 'structured' or 'text'.")

@@ -41,7 +41,11 @@ class RequirementsGenerator:
 
     def _extract_text_requirements(self, response: str) -> str:
         match = re.search(r'<detailed_requirements>(.*?)</detailed_requirements>', response, re.DOTALL)
-        return match.group(1).strip() if match else None
+        if match:
+            return match.group(1).strip()
+        else:
+            # タグがない場合は応答全体を返す
+            return response.strip()
 
     async def update_text_requirements(self, current_requirements: str, user_feedback: str) -> str:
         logger.info("Updating text requirements based on user feedback...")
@@ -90,16 +94,12 @@ class RequirementsGenerator:
                 print(response)
                 print("===== End of Response =====")
 
-                
                 if asyncio.iscoroutinefunction(extract_function):
                     result = await extract_function(response)
                 else:
                     result = extract_function(response)
                 
-                if result is not None:
-                    return result
-                else:
-                    raise ValueError("No valid requirements found in the response")
+                return result  # 常に結果を返す（None チェックを削除）
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)

@@ -33,11 +33,18 @@ Provide the requirements in the following JSON format:
     ],
     "tech_stack": ["string"],
     "folder_structure": {
-        "folder_name": {
-            "subfolders": {},
-            "files": [
-                {
-                    "name": "string",
+        "name": "string",
+        "subfolders": [
+            {
+                "name": "string",
+                "subfolders": [],
+                "files": []
+            }
+        ],
+        "files": [
+            {
+                "name": "string",
+                "content": {
                     "type": "class|function|component",
                     "description": "string",
                     "properties": ["string"],
@@ -50,8 +57,8 @@ Provide the requirements in the following JSON format:
                         }
                     ]
                 }
-            ]
-        }
+            }
+        ]
     }
 }
 ```

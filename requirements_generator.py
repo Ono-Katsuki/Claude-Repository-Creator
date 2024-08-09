@@ -1,9 +1,8 @@
-import json
 import re
 import asyncio
 import anthropic
 import logging
-from typing import Dict, List, Union, Any, Type 
+from typing import Union, Type 
 from pydantic import BaseModel 
 from openai import AsyncOpenAI
 from prompts import (
@@ -35,24 +34,18 @@ class RequirementsGenerator:
         prompt = create_text_update_prompt(current_requirements, user_feedback)
         return await self._execute_claude_request(prompt, self._extract_text_requirements)
 
-    async def generate_json_requirements(self, project_description: str) -> Dict[str, Any]:
-        logger.info("Generating JSON requirements...")
+    async def generate_structured_requirements(self, project_description: str) -> Requirements:
+        logger.info("Generating structured requirements...")
         prompt = create_json_requirements_prompt(project_description)
-        requirements = await self._execute_openai_request(prompt, Requirements)
-        return requirements.model_dump()
+        return await self._execute_openai_request(prompt, Requirements)
 
-    async def update_json_requirements(self, current_requirements: Union[Dict[str, Any], Requirements], project_description: str) -> Dict[str, Any]:
-        logger.info("Updating JSON requirements...")
-        if isinstance(current_requirements, dict):
-            current_requirements_json = json.dumps(current_requirements, indent=2)
-        else:
-            current_requirements_json = current_requirements.model_dump_json(indent=2)
-        
+    async def update_structured_requirements(self, current_requirements: Requirements, project_description: str) -> Requirements:
+        logger.info("Updating structured requirements...")
+        current_requirements_json = current_requirements.model_dump_json(indent=2)
         prompt = create_json_update_prompt(current_requirements_json, project_description)
-        updated_requirements = await self._execute_openai_request(prompt, Requirements)
-        return updated_requirements.model_dump()
+        return await self._execute_openai_request(prompt, Requirements)
 
-    async def _execute_claude_request(self, prompt: str, extract_function: callable) -> Union[str, Dict[str, Any]]:
+    async def _execute_claude_request(self, prompt: str, extract_function: callable) -> str:
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -109,28 +102,24 @@ class RequirementsGenerator:
                 else:
                     raise ValueError(f"Failed to execute OpenAI request after {max_retries} attempts: {str(e)}")
 
-    async def generate_requirements(self, project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
+    async def generate_requirements(self, project_description: str, output_format: str = "structured") -> Union[str, Requirements]:
         logger.info(f"Generating requirements in {output_format} format...")
-        if output_format.lower() == "json":
-            return await self.generate_json_requirements(project_description)
+        if output_format.lower() == "structured":
+            return await self.generate_structured_requirements(project_description)
         elif output_format.lower() == "text":
             return await self.generate_text_requirements(project_description)
         else:
-            raise ValueError("Invalid output format. Choose 'json' or 'text'.")
+            raise ValueError("Invalid output format. Choose 'structured' or 'text'.")
 
-    async def update_requirements(self, current_requirements: Union[str, Dict[str, Any], Requirements], project_description: str, output_format: str = "json") -> Union[str, Dict[str, Any]]:
+    async def update_requirements(self, current_requirements: Union[str, Requirements], project_description: str, output_format: str = "structured") -> Union[str, Requirements]:
         logger.info(f"Updating requirements in {output_format} format...")
-        if output_format.lower() == "json":
+        if output_format.lower() == "structured":
             if isinstance(current_requirements, str):
-                current_requirements = json.loads(current_requirements)
-            elif isinstance(current_requirements, Requirements):
-                current_requirements = current_requirements.model_dump()
-            return await self.update_json_requirements(current_requirements, project_description)
+                current_requirements = Requirements.parse_raw(current_requirements)
+            return await self.update_structured_requirements(current_requirements, project_description)
         elif output_format.lower() == "text":
-            if isinstance(current_requirements, dict):
-                current_requirements = json.dumps(current_requirements, indent=2)
-            elif isinstance(current_requirements, Requirements):
+            if isinstance(current_requirements, Requirements):
                 current_requirements = current_requirements.model_dump_json(indent=2)
             return await self.update_text_requirements(current_requirements, project_description)
         else:
-            raise ValueError("Invalid output format. Choose 'json' or 'text'.")
+            raise ValueError("Invalid output format. Choose 'structured' or 'text'.")

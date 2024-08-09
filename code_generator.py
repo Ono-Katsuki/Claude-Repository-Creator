@@ -2,9 +2,10 @@ import anthropic
 import asyncio
 import logging
 import re
+import os
 from typing import Dict, List, Optional
 from tqdm import tqdm
-from repository_models import Requirements, Feature, File, Folder
+from repository_models import Requirements, Feature, File, Folder, FileContent
 from prompts import create_code_generation_prompt, create_code_generation_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -23,11 +24,11 @@ class CodeGenerator:
             return 'react native'
         return language
 
-    async def generate_feature_code(self, feature: Optional[Feature], file_info: File, max_retries: int = 3) -> Optional[str]:
+    async def generate_feature_code(self, feature: Optional[Feature], file_content: FileContent, file_name: str, max_retries: int = 3) -> Optional[str]:
         language = self._normalize_language(self.tech_stack[0])
 
-        prompt = create_code_generation_prompt(feature, file_info, language)
-        system_prompt = create_system_prompt(language)
+        prompt = create_code_generation_prompt(feature, file_content, file_name, language)
+        system_prompt = create_code_generation_system_prompt(language)
 
         for attempt in range(max_retries):
             try:
@@ -52,14 +53,14 @@ class CodeGenerator:
                 processed_code = self._process_code_response(response)
                 if processed_code:
                     return processed_code
-                logger.warning(f"No valid code found in response for {file_info.name} (attempt {attempt + 1}/{max_retries})")
+                logger.warning(f"No valid code found in response for {file_name} (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
-                logger.error(f"Error occurred during code generation for {file_info.name} (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                logger.error(f"Error occurred during code generation for {file_name} (attempt {attempt + 1}/{max_retries}): {str(e)}")
             
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
         
-        logger.error(f"Failed to generate code for {file_info.name} after {max_retries} attempts")
+        logger.error(f"Failed to generate code for {file_name} after {max_retries} attempts")
         return None
 
     def _process_code_response(self, response: str) -> Optional[str]:
@@ -116,7 +117,7 @@ class CodeGenerator:
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
                     file_feature = feature or next((f for f in requirements.features if f.name.lower().replace(' ', '_') == folder.name), None)
-                    code = await self.generate_feature_code(file_feature, file)
+                    code = await self.generate_feature_code(file_feature, file.content, file.name)
                     results[file.name] = code
 
             for subfolder in folder.subfolders:

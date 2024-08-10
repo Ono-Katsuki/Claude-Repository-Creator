@@ -51,7 +51,12 @@ class CodeGenerator:
                                            feature_info=feature.model_dump() if feature else None,
                                            file_name=file.name,
                                            file_content=file.content.model_dump() if file.content else None)
-
+        
+        # Print the final prompt for debugging
+        print("===== Final Prompt =====")
+        print(prompt)
+        print("===== End of Prompt =====")
+        
         system_prompt = prompt_manager.get_prompt('create_code_generation_system_prompt', system_prompt_name, language=language)
 
         for attempt in range(max_retries):
@@ -141,18 +146,15 @@ class CodeGenerator:
             results = {}
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
-                    file_feature = feature or next((f for f in requirements.features if f.name.lower().replace(' ', '_') == folder.name), None)
-                    code = await self.generate_feature_code(file_feature, file, prompts)
+                    code = await self.generate_feature_code(feature, file, prompts)
                     file_path = os.path.join(path, file.name)
                     results[file_path] = code
                     if code:
                         self.write_code_to_file(file_path, code)
-
             for subfolder in folder.subfolders:
                 subfolder_path = os.path.join(path, subfolder.name)
                 subfolder_results = await process_folder(subfolder, feature, subfolder_path)
                 results.update(subfolder_results)
-
             return results
 
         total_files = self._count_valid_files(requirements.folder_structure)

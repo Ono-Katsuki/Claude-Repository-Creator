@@ -114,16 +114,6 @@ class CodeGenerator:
         
         return '\n'.join(clean_lines)
 
-    def write_code_to_file(self, file_path: str, code: str) -> None:
-        try:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(code)
-            logger.info(f"Code written to file: {file_path}")
-        except IOError as e:
-            logger.error(f"Error writing code to file {file_path}: {str(e)}")
-            raise
-
     def get_supported_languages(self) -> List[str]:
         return self.tech_stack
 
@@ -147,10 +137,6 @@ class CodeGenerator:
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
                     code = await self.generate_feature_code(feature, file, prompts)
-                    file_path = os.path.join(path, file.name)
-                    results[file_path] = code
-                    if code:
-                        self.write_code_to_file(file_path, code)
             for subfolder in folder.subfolders:
                 subfolder_path = os.path.join(path, subfolder.name)
                 subfolder_results = await process_folder(subfolder, feature, subfolder_path)

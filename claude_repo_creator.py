@@ -7,7 +7,7 @@ from tqdm import tqdm
 from config_manager import ConfigManager
 from cache_manager import CacheManager
 from version_control import VersionControlFactory
-from repo_generator import RepoGenerator
+from repository_generator import RepoGenerator
 from requirements_generator import RequirementsGenerator
 from repository_creator import RepositoryCreator
 from markdown_generator import MarkdownGenerator

@@ -89,17 +89,12 @@ class RequirementsGenerator:
                 )
                 response = message.content[0].text
 
-                # Print the full response from Claude
-                print("===== Claude AI Response =====")
-                print(response)
-                print("===== End of Response =====")
-
                 if asyncio.iscoroutinefunction(extract_function):
                     result = await extract_function(response)
                 else:
                     result = extract_function(response)
                 
-                return result  # 常に結果を返す（None チェックを削除）
+                return result  
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)

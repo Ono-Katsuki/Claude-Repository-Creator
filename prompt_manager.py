@@ -7,7 +7,7 @@ class PromptManager:
         self.prompts_dir = prompts_dir
         self.prompts: Dict[str, Dict[str, str]] = {}
         self.required_variables: Dict[str, Dict[str, List[str]]] = {
-            'create_code_generation_prompt': {'default': ['language', 'feature_info', 'file_name', 'file_content.type', 'file_content.description', 'file_content.properties', 'file_content.methods']},
+            'create_code_generation_prompt': {'default': ['language', 'feature_info', 'file_name', 'file_content']},
             'create_json_requirements_prompt': {'default': ['project_description']},
             'create_json_update_prompt': {'default': ['project_description', 'current_requirements', 'user_feedback']},
             'create_text_requirements_prompt': {'default': ['user_request']},
@@ -51,6 +51,28 @@ class PromptManager:
                 return None
         return data
 
+    def format_methods(self, methods):
+        formatted_methods = []
+        for method in methods:
+            params = ", ".join(method.params)
+            formatted_method = f"{method.name}({params}) -> {method.return_type}: {method.description}"
+            formatted_methods.append(formatted_method)
+        return "\n".join(formatted_methods)
+
+    def _add_missing_content(self, prompt: str, key: str, value: Any) -> str:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                nested_key = f"{key}.{k}"
+                if f"{{{nested_key}}}" not in prompt:
+                    prompt = f"{nested_key}: {self._format_value(v)}\n\n{prompt}"
+        elif isinstance(value, list) and key == 'file_content.methods':
+            if "{format_methods(file_content.methods)}" not in prompt:
+                methods_str = self.format_methods(value)
+                prompt = f"{key}:\n{methods_str}\n\n{prompt}"
+        elif f"{{{key}}}" not in prompt:
+            prompt = f"{key}: {self._format_value(value)}\n\n{prompt}"
+        return prompt
+
     def get_prompt(self, role: str, prompt_name: str, **kwargs: Any) -> str:
         if role not in self.prompts:
             raise ValueError(f"Role '{role}' not found.")
@@ -59,41 +81,27 @@ class PromptManager:
         
         prompt = self.prompts[role][prompt_name]
         
-        # Add missing required variables with clear format
-        if role in self.required_variables and prompt_name in self.required_variables[role]:
-            required_vars = self.required_variables[role][prompt_name]
-            existing_vars = set(re.findall(r'\{([^}]*)\}', prompt))
-            missing_vars = set(required_vars) - existing_vars
-            if missing_vars:
-                variable_section = "\n".join([f"{var}: {{{var}}}" for var in missing_vars])
-                prompt = f"{variable_section}\n\n{prompt}"
-        
-        # Replace placeholders in the prompt
+        # Replace placeholders in the prompt and add missing content
         for key, value in kwargs.items():
             placeholder = f"{{{key}}}"
             if placeholder in prompt:
                 formatted_value = self._format_value(value)
                 prompt = prompt.replace(placeholder, formatted_value)
             else:
-                # If the placeholder doesn't exist, try to resolve nested keys
-                nested_value = self._resolve_nested_key(kwargs, key)
-                if nested_value is not None:
-                    formatted_value = self._format_value(nested_value)
-                    prompt = prompt.replace(f"{{{key}}}", formatted_value)
-                else:
-                    # If the nested key doesn't exist, add it at the beginning with the clear format
-                    prompt = f"{key}: {self._format_value(value)}\n\n{prompt}"
+                # If the placeholder doesn't exist, add missing content
+                prompt = self._add_missing_content(prompt, key, value)
+        
+        # Handle special function calls
+        if "{format_methods(file_content.methods)}" in prompt:
+            methods = self._resolve_nested_key(kwargs, 'file_content.methods')
+            if methods:
+                methods_str = self.format_methods(methods)
+                prompt = prompt.replace("{format_methods(file_content.methods)}", methods_str)
         
         # Remove any remaining unresolved placeholders
         prompt = re.sub(r'\{[^}]+\}', '', prompt)
         
-        final_prompt = prompt.strip()
-        
-        # Print the final prompt for debugging
-        print("===== Final Prompt =====")
-        print(final_prompt)
-        print("===== End of Prompt =====")
-        
+        final_prompt = prompt.strip()                
         return final_prompt
 
     def list_prompts(self) -> List[Tuple[str, str]]:

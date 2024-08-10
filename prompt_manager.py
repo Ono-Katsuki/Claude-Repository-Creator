@@ -28,6 +28,29 @@ class PromptManager:
                             content = f.read()
                         self.prompts[role][prompt_name] = content
 
+    def _format_value(self, value: Any) -> str:
+        if isinstance(value, list):
+            return ', '.join(map(str, value))
+        elif isinstance(value, dict):
+            return ', '.join(f"{k}: {v}" for k, v in value.items())
+        elif isinstance(value, (int, float, bool)):
+            return str(value)
+        elif value is None:
+            return 'None'
+        else:
+            return str(value)
+
+    def _resolve_nested_key(self, data: Dict[str, Any], key: str) -> Any:
+        parts = key.split('.')
+        for part in parts:
+            if isinstance(data, dict) and part in data:
+                data = data[part]
+            elif hasattr(data, part):
+                data = getattr(data, part)
+            else:
+                return None
+        return data
+
     def get_prompt(self, role: str, prompt_name: str, **kwargs: Any) -> str:
         if role not in self.prompts:
             raise ValueError(f"Role '{role}' not found.")
@@ -36,7 +59,7 @@ class PromptManager:
         
         prompt = self.prompts[role][prompt_name]
         
-        # Add only missing required variables with clear format
+        # Add missing required variables with clear format
         if role in self.required_variables and prompt_name in self.required_variables[role]:
             required_vars = self.required_variables[role][prompt_name]
             existing_vars = set(re.findall(r'\{([^}]*)\}', prompt))
@@ -49,10 +72,20 @@ class PromptManager:
         for key, value in kwargs.items():
             placeholder = f"{{{key}}}"
             if placeholder in prompt:
-                prompt = prompt.replace(placeholder, str(value))
+                formatted_value = self._format_value(value)
+                prompt = prompt.replace(placeholder, formatted_value)
             else:
-                # If the placeholder doesn't exist, add it at the beginning with the clear format
-                prompt = f"{key}: {value}\n\n{prompt}"
+                # If the placeholder doesn't exist, try to resolve nested keys
+                nested_value = self._resolve_nested_key(kwargs, key)
+                if nested_value is not None:
+                    formatted_value = self._format_value(nested_value)
+                    prompt = prompt.replace(f"{{{key}}}", formatted_value)
+                else:
+                    # If the nested key doesn't exist, add it at the beginning with the clear format
+                    prompt = f"{key}: {self._format_value(value)}\n\n{prompt}"
+        
+        # Remove any remaining unresolved placeholders
+        prompt = re.sub(r'\{[^}]+\}', '', prompt)
         
         final_prompt = prompt.strip()
         

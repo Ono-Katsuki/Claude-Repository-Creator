@@ -2,7 +2,6 @@ import os
 import re
 from typing import Dict, Any, List, Tuple
 
-
 class PromptManager:
     def __init__(self, prompts_dir: str = 'prompts'):
         self.prompts_dir = prompts_dir
@@ -37,7 +36,7 @@ class PromptManager:
         elif isinstance(value, (int, float, bool)):
             return str(value)
         elif value is None:
-            return 'None'
+            return ''
         else:
             return str(value)
 
@@ -56,13 +55,11 @@ class PromptManager:
         formatted_methods = []
         for method in methods:
             if isinstance(method, dict):
-                # Handle dictionary representation
                 params = ", ".join(method.get('params', []))
                 name = method.get('name', '')
                 return_type = method.get('return_type', '')
                 description = method.get('description', '')
             else:
-                # Handle object representation
                 params = ", ".join(method.params)
                 name = method.name
                 return_type = method.return_type
@@ -72,20 +69,6 @@ class PromptManager:
             formatted_methods.append(formatted_method)
         return "\n".join(formatted_methods)
 
-    def _add_missing_content(self, prompt: str, key: str, value: Any) -> str:
-        if isinstance(value, dict):
-            for k, v in value.items():
-                nested_key = f"{key}.{k}"
-                if f"{{{nested_key}}}" not in prompt:
-                    prompt = f"{nested_key}: {self._format_value(v)}\n\n{prompt}"
-        elif isinstance(value, list) and key == 'file_content.methods':
-            if "{format_methods(file_content.methods)}" not in prompt:
-                methods_str = self.format_methods(value)
-                prompt = f"{key}:\n{methods_str}\n\n{prompt}"
-        elif f"{{{key}}}" not in prompt:
-            prompt = f"{key}: {self._format_value(value)}\n\n{prompt}"
-        return prompt
-
     def get_prompt(self, role: str, prompt_name: str, **kwargs: Any) -> str:
         if role not in self.prompts:
             raise ValueError(f"Role '{role}' not found.")
@@ -94,15 +77,19 @@ class PromptManager:
         
         prompt = self.prompts[role][prompt_name]
         
-        # Replace placeholders in the prompt and add missing content
+        # Replace placeholders in the prompt
         for key, value in kwargs.items():
             placeholder = f"{{{key}}}"
             if placeholder in prompt:
-                formatted_value = self._format_value(value)
-                prompt = prompt.replace(placeholder, formatted_value)
-            else:
-                # If the placeholder doesn't exist, add missing content
-                prompt = self._add_missing_content(prompt, key, value)
+                if isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        sub_placeholder = f"{{{key}.{sub_key}}}"
+                        if sub_placeholder in prompt:
+                            formatted_value = self._format_value(sub_value)
+                            prompt = prompt.replace(sub_placeholder, formatted_value)
+                else:
+                    formatted_value = self._format_value(value)
+                    prompt = prompt.replace(placeholder, formatted_value)
         
         # Handle special function calls
         if "{format_methods(file_content.methods)}" in prompt:
@@ -114,8 +101,7 @@ class PromptManager:
         # Remove any remaining unresolved placeholders
         prompt = re.sub(r'\{[^}]+\}', '', prompt)
         
-        final_prompt = prompt.strip()                
-        return final_prompt
+        return prompt.strip()
 
     def list_prompts(self) -> List[Tuple[str, str]]:
         prompt_list = []

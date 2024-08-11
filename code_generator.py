@@ -42,13 +42,12 @@ class CodeGenerator:
             except ValueError:
                 print("Please enter a number.")
 
-    async def generate_feature_code(self, feature: Optional[Feature], file: File, prompts: Tuple[str, str], max_retries: int = 3) -> Optional[str]:
-        language = self._normalize_language(self.tech_stack[0])
+    async def generate_feature_code(self, features: List[Feature], file: File, prompts: Tuple[str, str], max_retries: int = 3) -> Optional[str]:
         code_prompt_name, system_prompt_name = prompts
 
         prompt = prompt_manager.get_prompt('create_code_generation_prompt', code_prompt_name, 
-                                           language=language, 
-                                           feature_info=feature.model_dump() if feature else None,
+                                           tech_stack=self.tech_stack,
+                                           features=[feature.model_dump() for feature in features],
                                            file_name=file.name,
                                            file_content=file.content.model_dump() if file.content else None)
         
@@ -57,7 +56,7 @@ class CodeGenerator:
         print(prompt)
         print("===== End of Prompt =====")
         
-        system_prompt = prompt_manager.get_prompt('create_code_generation_system_prompt', system_prompt_name, language=language)
+        system_prompt = prompt_manager.get_prompt('create_code_generation_system_prompt', system_prompt_name, tech_stack=self.tech_stack)
 
         for attempt in range(max_retries):
             try:
@@ -117,29 +116,42 @@ class CodeGenerator:
     def get_supported_languages(self) -> List[str]:
         return self.tech_stack
 
-    def get_file_extension(self, language: str) -> str:
-        extensions = {
-            'python': '.py',
-            'java': '.java',
-            'javascript': '.js',
-            'html': '.html',
-            'css': '.css',
-            'ruby': '.rb',
-            'react': '.jsx',
-            'react native': '.js',
-        }
-        normalized_language = self._normalize_language(language)
-        return extensions.get(normalized_language, '.txt')
+    def get_file_extension(self, file_name: str) -> str:
+        _, ext = os.path.splitext(file_name)
+        if ext:
+            return ext
+        # If no extension, try to infer from the tech stack
+        for lang in self.tech_stack:
+            if lang in ['python', 'py']:
+                return '.py'
+            elif lang in ['javascript', 'js', 'typescript', 'ts']:
+                return '.js'
+            elif lang in ['java']:
+                return '.java'
+            elif lang in ['html']:
+                return '.html'
+            elif lang in ['css']:
+                return '.css'
+            elif lang in ['ruby', 'rb']:
+                return '.rb'
+            elif lang in ['react']:
+                return '.jsx'
+            elif lang in ['react native']:
+                return '.js'
+            # Add more language-specific extensions as needed
+        return ''  # Default to empty string if unable to determine
 
     async def generate_code_for_features(self, requirements: Requirements, prompts: Tuple[str, str]) -> Dict[str, Optional[str]]:
-        async def process_folder(folder: Folder, feature: Optional[Feature] = None, path: str = "") -> Dict[str, Optional[str]]:
+        async def process_folder(folder: Folder, path: str = "") -> Dict[str, Optional[str]]:
             results = {}
             for file in folder.files:
                 if not self._is_image_or_audio_file(file.name):
-                    code = await self.generate_feature_code(feature, file, prompts)
+                    file_path = os.path.join(path, file.name)
+                    code = await self.generate_feature_code(requirements.features, file, prompts)
+                    results[file_path] = code
             for subfolder in folder.subfolders:
                 subfolder_path = os.path.join(path, subfolder.name)
-                subfolder_results = await process_folder(subfolder, feature, subfolder_path)
+                subfolder_results = await process_folder(subfolder, subfolder_path)
                 results.update(subfolder_results)
             return results
 

@@ -42,12 +42,25 @@ class CodeGenerator:
             except ValueError:
                 print("Please enter a number.")
 
+    def _features_to_text(self, features: List[Feature]) -> str:
+        feature_texts = []
+        for feature in features:
+            feature_text = f"Feature: {feature.name}\n"
+            feature_text += f"Description: {feature.description}\n"
+            feature_text += "Acceptance Criteria:\n"
+            for criterion in feature.acceptance_criteria:
+                feature_text += f"- {criterion}\n"
+            feature_texts.append(feature_text)
+        return "\n".join(feature_texts)
+        
     async def generate_feature_code(self, features: List[Feature], file: File, prompts: Tuple[str, str], max_retries: int = 3) -> Optional[str]:
         code_prompt_name, system_prompt_name = prompts
 
+        features_text = self._features_to_text(features)
+
         prompt = prompt_manager.get_prompt('create_code_generation_prompt', code_prompt_name, 
                                            tech_stack=self.tech_stack,
-                                           features=[feature.model_dump() for feature in features],
+                                           features=features_text,
                                            file_name=file.name,
                                            file_content=file.content.model_dump() if file.content else None)
         

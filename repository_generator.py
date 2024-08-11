@@ -86,9 +86,9 @@ class RepoGenerator:
             return 'react native'
         return language
 
-    def create_repo_folder(self, project_name: str):
+    def create_repo_folder(self, project_path: str) -> str:
         """Creates a new folder for the repository"""
-        self.repo_folder = os.path.join(os.getcwd(), project_name)
+        self.repo_folder = project_path
         os.makedirs(self.repo_folder, exist_ok=True)
         logger.info(f"Created new repository folder: {self.repo_folder}")
 

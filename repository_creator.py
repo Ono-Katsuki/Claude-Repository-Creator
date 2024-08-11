@@ -12,82 +12,55 @@ class RepositoryCreator:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
-    async def create_repository(self, requirements: Requirements, update_existing: bool, current_project_folder: str, repo_generator: Any, vc_system: Any):
+    async def create_repository(self, requirements: Requirements, update_existing: bool, project_path: str, repository_generator: Any, vc_system: Any) -> str:
         try:
             project_name = requirements.project_name
-            repo_generator.create_repo_folder(current_project_folder)
+            repository_generator.create_repo_folder(project_path)
             
             if update_existing:
-                await self.update_existing_repository(requirements, repo_generator)
+                await self.update_existing_repository(requirements, repository_generator)
             else:
-                repo_generator.create_structure(requirements.folder_structure)
-                repo_generator.create_readme(requirements)
-                repo_generator.create_gitignore(requirements.tech_stack)
+                repository_generator.create_structure(requirements.folder_structure)
+                repository_generator.create_readme(requirements)
+                repository_generator.create_gitignore(requirements.tech_stack)
             
-            await self.create_feature_files(requirements.features, requirements.tech_stack, requirements.folder_structure, repo_generator)
+            await self.create_feature_files(requirements, repository_generator, project_path)
             
-            vc_system.initialize(repo_generator.repo_folder)
+            vc_system.initialize(project_path)
             vc_system.add_all()
             vc_system.commit("Initial commit")
             
-            logger.info(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} successfully in folder: {repo_generator.repo_folder}")
+            logger.info(f"Repository for project: {project_name} has been {'updated' if update_existing else 'created'} successfully in folder: {repository_generator.repo_folder}")
         except Exception as e:
             logger.error(f"Error creating repository: {str(e)}")
             raise
 
-    async def update_existing_repository(self, requirements: Requirements, repo_generator: Any):
+    async def update_existing_repository(self, requirements: Requirements, repository_generator: Any):
         try:
-            current_structure = repo_generator.get_current_structure()
+            current_structure = repository_generator.get_current_structure()
             updated_structure = requirements.folder_structure
-            repo_generator.update_structure(current_structure, updated_structure)
-            repo_generator.update_readme(requirements)
-            repo_generator.update_gitignore(requirements.tech_stack)
+            repository_generator.update_structure(current_structure, updated_structure)
+            repository_generator.update_readme(requirements)
+            repository_generator.update_gitignore(requirements.tech_stack)
         except Exception as e:
             logger.error(f"Error updating existing repository: {str(e)}")
             raise
 
-    async def create_feature_files(self, features: List[Feature], tech_stack: List[str], folder_structure: Folder, repo_generator: Any):
+    async def create_feature_files(self, requirements: Requirements, repository_generator: Any, project_path: str):
         try:
-            code_generator = CodeGenerator(self.api_key, tech_stack)
+            code_generator = CodeGenerator(self.api_key, requirements.tech_stack)
             
-            async def generate_code(file: File, file_path: str, feature: Feature = None):
-                try:
-                    feature_code = await code_generator.generate_feature_code(feature, file)
-                    if feature_code is None:
-                        return file.name, None
-                    
-                    code_generator.write_code_to_file(file_path, feature_code)
-                    return file.name, file_path
-                except Exception as e:
-                    logger.error(f"Error processing file {file.name}: {str(e)}")
-                    return file.name, None
+            # Generate code for the entire project
+            code_results = await code_generator.generate_project_code(requirements)
 
-            async def process_structure(structure: Folder, base_path: str):
-                tasks = []
-                for subfolder in structure.subfolders:
-                    folder_path = os.path.join(base_path, subfolder.name)
-                    os.makedirs(folder_path, exist_ok=True)
-                    
-                    for file in subfolder.files:
-                        file_path = os.path.join(folder_path, file.name)
-                        feature = self._get_feature_for_file(features, file.name)
-                        tasks.append(generate_code(file, file_path, feature))
-                    
-                    subfolder_tasks = await process_structure(subfolder, folder_path)
-                    tasks.extend(subfolder_tasks)
-                
-                return tasks
+            # Write generated code to files
+            for file_path, code in code_results.items():
+                if code is not None:
+                    full_path = os.path.join(project_path, file_path)
+                    code_generator.write_code_to_file(full_path, code)
 
-            tasks = await process_structure(folder_structure, repo_generator.repo_folder)
-            
-            logger.info(f"Starting to generate {len(tasks)} files")
-            results = []
-            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating Files"):
-                result = await future
-                results.append(result)
-            
-            logger.info("All files generated successfully")
-            return dict(results)
+            logger.info(f"Generated and wrote code for {len(code_results)} files")
+            return code_results
         except Exception as e:
             logger.error(f"Error creating files: {str(e)}")
             raise

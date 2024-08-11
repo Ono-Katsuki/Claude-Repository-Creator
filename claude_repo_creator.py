@@ -7,7 +7,7 @@ from tqdm import tqdm
 from config_manager import ConfigManager
 from cache_manager import CacheManager
 from version_control import VersionControlFactory
-from repo_generator import RepoGenerator
+from repository_generator import RepoGenerator
 from requirements_generator import RequirementsGenerator
 from repository_creator import RepositoryCreator
 from markdown_generator import MarkdownGenerator
@@ -33,10 +33,10 @@ class ClaudeRepoCreator:
         if self.debug_mode:
             logging.getLogger().setLevel(logging.DEBUG)
         self.requirements_generator = RequirementsGenerator(
-            self.config['claude_api_key'],
-            self.config['openai_api_key']
+            self.config.get('claude_api_key'),
+            self.config.get('openai_api_key')
         )
-        self.repository_creator = RepositoryCreator(self.config['claude_api_key'])
+        self.repository_creator = RepositoryCreator(self.config.get('claude_api_key'))
         self.markdown_generator = MarkdownGenerator()
         self.requirements_manager = RequirementsManager(self.requirements_folder, self.cache_folder)
 
@@ -49,12 +49,33 @@ class ClaudeRepoCreator:
 
     def load_config(self):
         config = self.config_manager.load_config()
-        if not config.get('claude_api_key'):
-            config['claude_api_key'] = self.prompt_for_api_key('Claude')
-            self.config_manager.save_config(config)
-        if not config.get('openai_api_key'):
-            config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
-            self.config_manager.save_config(config)
+        if not config.get('claude_api_key') or not config.get('openai_api_key'):
+            self.update_api_keys(config)
+        return config
+
+    def update_api_keys(self, config):
+        print("\nCurrent API key status:")
+        print(f"Claude API key: {'Set' if config.get('claude_api_key') else 'Not set'}")
+        print(f"OpenAI API key: {'Set' if config.get('openai_api_key') else 'Not set'}")
+
+        while True:
+            choice = input("\nWhich API key would you like to update? (1: Claude, 2: OpenAI, 3: Both, 4: Skip): ")
+            if choice == '1':
+                config['claude_api_key'] = self.prompt_for_api_key('Claude')
+                break
+            elif choice == '2':
+                config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
+                break
+            elif choice == '3':
+                config['claude_api_key'] = self.prompt_for_api_key('Claude')
+                config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
+                break
+            elif choice == '4':
+                break
+            else:
+                print("Invalid choice. Please enter 1, 2, 3, or 4.")
+
+        self.config_manager.save_config(config)
         return config
 
     def prompt_for_api_key(self, api_type):
@@ -92,11 +113,57 @@ class ClaudeRepoCreator:
 
     def prompt_user_action(self):
         while True:
-            action = input("\nWhat would you like to do? (1: Generate a new project, 2: Change API keys, 3: Exit): ")
-            if action in ['1', '2', '3']:
+            action = input("\nWhat would you like to do? (1: Generate a new project, 2: Continue from a stage, 3: Update API keys, 4: Exit): ")
+            if action in ['1', '2', '3', '4']:
                 return action
             else:
-                print("Invalid choice. Please enter 1, 2, or 3.")
+                print("Invalid choice. Please enter 1, 2, 3, or 4.")
+
+    def prompt_continue_stage(self):
+        while True:
+            stage = input("\nFrom which stage would you like to continue? (1: Upgrade text requirements, 2: Generate JSON from text, 3: Upgrade JSON requirements, 4: Generate project from JSON): ")
+            if stage in ['1', '2', '3', '4']:
+                return stage
+            else:
+                print("Invalid choice. Please enter 1, 2, 3, or 4.")
+
+    def select_project(self):
+        projects = [d for d in os.listdir(self.projects_folder) if os.path.isdir(os.path.join(self.projects_folder, d))]
+        if not projects:
+            print("No existing projects found.")
+            return None
+        print("\nAvailable projects:")
+        for i, project in enumerate(projects, 1):
+            print(f"{i}: {project}")
+        while True:
+            choice = input("Select a project number: ")
+            try:
+                index = int(choice) - 1
+                if 0 <= index < len(projects):
+                    return projects[index]
+                else:
+                    print("Invalid choice. Please enter a valid project number.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+
+    def select_version(self, project_name, is_json=False):
+        versions = self.requirements_manager.get_all_versions(project_name, is_json)
+        if not versions:
+            print("No versions found for this project.")
+            return None
+        print("\nAvailable versions:")
+        for i, version in enumerate(versions, 1):
+            print(f"{i}: {version}")
+        while True:
+            choice = input("Select a version number: ")
+            try:
+                index = int(choice) - 1
+                if 0 <= index < len(versions):
+                    return versions[index].split('_v')[1].split('.')[0]
+                else:
+                    print("Invalid choice. Please enter a valid version number.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
 
     async def generate_project(self):
         try:
@@ -147,15 +214,8 @@ class ClaudeRepoCreator:
             
             # Create repository
             progress_bar.set_description("Creating repository")
-            await self.repository_creator.create_repository(updated_requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+            await self.create_project_from_requirements(new_project_name, updated_requirements)
             progress_bar.update(1)
-            
-            print(f"\nRepository for project: {new_project_name} has been created in folder: {self.repo_generator.repo_folder}")
-            
-            # Create and save project summary with full code
-            self.create_project_summary(updated_requirements)
-            
-            print(f"\nProject summary with full code has been created in the markdown folder.")
             
             progress_bar.close()
 
@@ -208,6 +268,64 @@ class ClaudeRepoCreator:
         
         return requirements
 
+    async def continue_from_stage(self):
+        stage = self.prompt_continue_stage()
+        project_name = self.select_project()
+        if not project_name:
+            return
+
+        if stage in ['1', '2']:  # Text-based stages
+            version = self.select_version(project_name, is_json=False)
+            if not version:
+                return
+            text_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=False)
+            
+            if stage == '1':  # Upgrade text requirements
+                updated_text = await self.text_requirements_loop(project_name, text_requirements)
+                new_version = self.requirements_manager.save_requirements(project_name, updated_text, is_json=False)
+                print(f"Updated text requirements saved as version {new_version}")
+            
+            elif stage == '2':  # Generate JSON from text
+                json_requirements = await self.requirements_generator.generate_structured_requirements(text_requirements)
+                new_version = self.save_requirements(json_requirements, project_name)
+                print(f"Generated JSON requirements saved as version {new_version}")
+
+        elif stage in ['3', '4']:  # JSON-based stages
+            version = self.select_version(project_name, is_json=True)
+            if not version:
+                return
+            json_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=True)
+            requirements = Requirements(**json_requirements)
+
+            if stage == '3':  # Upgrade JSON requirements
+                updated_requirements = await self.json_requirements_loop(project_name, requirements, "")
+                new_version = self.save_requirements(updated_requirements, project_name)
+                print(f"Updated JSON requirements saved as version {new_version}")
+            
+            elif stage == '4':  # Generate project from JSON
+                await self.create_project_from_requirements(project_name, requirements)
+
+    async def create_project_from_requirements(self, project_name, requirements):
+            version_folder = f"v{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            self.current_project_folder = os.path.join(self.projects_folder, project_name, version_folder)
+            os.makedirs(self.current_project_folder, exist_ok=True)
+
+            progress_bar = tqdm(total=2, desc="Project Creation Progress", unit="step")
+
+            # Create repository
+            progress_bar.set_description("Creating repository")
+            await self.repository_creator.create_repository(requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+            progress_bar.update(1)
+        
+            print(f"\nRepository for project: {project_name} has been created in folder: {self.current_project_folder}")
+        
+            # Create and save project summary with full code
+            self.create_project_summary(requirements)
+            print(f"\nProject summary with full code has been created in the markdown folder.")
+            progress_bar.update(1)
+            
+            progress_bar.close()
+
     async def run(self):
         print("Welcome to Claude Repo Creator!")
         while True:
@@ -216,16 +334,16 @@ class ClaudeRepoCreator:
             if action == '1':
                 await self.generate_project()
             elif action == '2':
-                self.config['claude_api_key'] = self.prompt_for_api_key('Claude')
-                self.config['openai_api_key'] = self.prompt_for_api_key('OpenAI')
-                self.config_manager.save_config(self.config)
-                self.requirements_generator = RequirementsGenerator(
-                    self.config['claude_api_key'],
-                    self.config['openai_api_key']
-                )
-                self.repository_creator = RepositoryCreator(self.config['claude_api_key'])
-                print("\nAPI keys updated.")
+                await self.continue_from_stage()
             elif action == '3':
+                self.config = self.update_api_keys(self.config)
+                self.requirements_generator = RequirementsGenerator(
+                    self.config.get('claude_api_key'),
+                    self.config.get('openai_api_key')
+                )
+                self.repository_creator = RepositoryCreator(self.config.get('claude_api_key'))
+                print("\nAPI keys updated.")
+            elif action == '4':
                 print("Exiting the program. Goodbye!")
                 break
 

@@ -128,7 +128,7 @@ class ClaudeRepoCreator:
                 print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
     def select_project(self):
-        projects = [d for d in os.listdir(self.projects_folder) if os.path.isdir(os.path.join(self.projects_folder, d))]
+        projects = [d for d in os.listdir(self.projects_folder) if os.path.isdir(os.path.join(self.projects_folder, d)) and d != "information_management"]
         if not projects:
             print("No existing projects found.")
             return None
@@ -145,7 +145,7 @@ class ClaudeRepoCreator:
                     print("Invalid choice. Please enter a valid project number.")
             except ValueError:
                 print("Invalid input. Please enter a number.")
-
+                
     def select_version(self, project_name, is_json=False):
         versions = self.requirements_manager.get_all_versions(project_name, is_json)
         if not versions:
@@ -268,63 +268,76 @@ class ClaudeRepoCreator:
         
         return requirements
 
+
     async def continue_from_stage(self):
-        stage = self.prompt_continue_stage()
         project_name = self.select_project()
         if not project_name:
             return
 
-        if stage in ['1', '2']:  # Text-based stages
-            version = self.select_version(project_name, is_json=False)
-            if not version:
-                return
-            text_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=False)
-            
+        stage = self.prompt_continue_stage()
+        
+        # Initialize variables
+        text_requirements = None
+        json_requirements = None
+        requirements = None
+        
+        while stage in ['1', '2', '3', '4']:
             if stage == '1':  # Upgrade text requirements
+                version = self.select_version(project_name, is_json=False)
+                if not version:
+                    break
+                text_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=False)
                 updated_text = await self.text_requirements_loop(project_name, text_requirements)
                 new_version = self.requirements_manager.save_requirements(project_name, updated_text, is_json=False)
                 print(f"Updated text requirements saved as version {new_version}")
-            
-            elif stage == '2':  # Generate JSON from text
+                text_requirements = updated_text
+
+            if stage <= '2':  # Generate JSON from text
+                if text_requirements is None:
+                    version = self.select_version(project_name, is_json=False)
+                    if not version:
+                        break
+                    text_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=False)
                 json_requirements = await self.requirements_generator.generate_structured_requirements(text_requirements)
                 new_version = self.save_requirements(json_requirements, project_name)
                 print(f"Generated JSON requirements saved as version {new_version}")
+                requirements = json_requirements
 
-        elif stage in ['3', '4']:  # JSON-based stages
-            version = self.select_version(project_name, is_json=True)
-            if not version:
-                return
-            json_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=True)
-            requirements = Requirements(**json_requirements)
-
-            if stage == '3':  # Upgrade JSON requirements
+            if stage <= '3':  # Upgrade JSON requirements
+                if requirements is None:
+                    version = self.select_version(project_name, is_json=True)
+                    if not version:
+                        break
+                    json_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=True)
+                    requirements = Requirements(**json_requirements)
                 updated_requirements = await self.json_requirements_loop(project_name, requirements, "")
                 new_version = self.save_requirements(updated_requirements, project_name)
                 print(f"Updated JSON requirements saved as version {new_version}")
-            
-            elif stage == '4':  # Generate project from JSON
+                requirements = updated_requirements
+
+            if stage <= '4':  # Generate project from JSON
+                if requirements is None:
+                    version = self.select_version(project_name, is_json=True)
+                    if not version:
+                        break
+                    json_requirements = self.requirements_manager.get_requirements_by_version(project_name, version, is_json=True)
+                    requirements = Requirements(**json_requirements)
                 await self.create_project_from_requirements(project_name, requirements)
 
-    async def create_project_from_requirements(self, project_name, requirements):
-            version_folder = f"v{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            self.current_project_folder = os.path.join(self.projects_folder, project_name, version_folder)
-            os.makedirs(self.current_project_folder, exist_ok=True)
+            # Ask if the user wants to continue to the next stage
+            next_stage = int(stage) + 1
+            if next_stage <= 4:
+                if input(f"Do you want to continue to stage {next_stage}? (y/n): ").lower() == 'y':
+                    stage = str(next_stage)
+                else:
+                    break
+            else:
+                break
 
-            progress_bar = tqdm(total=2, desc="Project Creation Progress", unit="step")
-
-            # Create repository
-            progress_bar.set_description("Creating repository")
-            await self.repository_creator.create_repository(requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
-            progress_bar.update(1)
-        
-            print(f"\nRepository for project: {project_name} has been created in folder: {self.current_project_folder}")
-        
-            # Create and save project summary with full code
-            self.create_project_summary(requirements)
-            print(f"\nProject summary with full code has been created in the markdown folder.")
-            progress_bar.update(1)
-            
-            progress_bar.close()
+        # Clean up variables after the loop
+        del text_requirements
+        del json_requirements
+        del requirements
 
     async def run(self):
         print("Welcome to Claude Repo Creator!")

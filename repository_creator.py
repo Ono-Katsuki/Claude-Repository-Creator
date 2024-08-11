@@ -15,7 +15,7 @@ class RepositoryCreator:
     async def create_repository(self, requirements: Requirements, update_existing: bool, project_path: str, repository_generator: Any, vc_system: Any) -> str:
         try:
             project_name = requirements.project_name
-            repo_folder = repository_generator.create_repo_folder(project_path)
+            repository_generator.create_repo_folder(project_path)
             
             if update_existing:
                 await self.update_existing_repository(requirements, repository_generator)
@@ -26,7 +26,7 @@ class RepositoryCreator:
             
             await self.create_feature_files(requirements, repository_generator, project_path)
             
-            vc_system.initialize(repo_folder)
+            vc_system.initialize(project_path)
             vc_system.add_all()
             vc_system.commit("Initial commit")
             

@@ -85,10 +85,26 @@ class PromptManager:
                     for sub_key, sub_value in value.items():
                         sub_placeholder = f"{{{key}.{sub_key}}}"
                         if sub_placeholder in prompt:
-                            formatted_value = self._format_value(sub_value)
+                            if isinstance(sub_value, list):
+                                formatted_value = ', '.join(map(str, sub_value))
+                            else:
+                                formatted_value = self._format_value(sub_value)
                             prompt = prompt.replace(sub_placeholder, formatted_value)
                 else:
                     formatted_value = self._format_value(value)
+                    prompt = prompt.replace(placeholder, formatted_value)
+        
+        # Handle special cases for file_content
+        if 'file_content' in kwargs:
+            file_content = kwargs['file_content']
+            for field in ['type', 'description', 'properties']:
+                placeholder = f"{{file_content.{field}}}"
+                if placeholder in prompt:
+                    value = file_content.get(field, '')
+                    if isinstance(value, list):
+                        formatted_value = ', '.join(map(str, value))
+                    else:
+                        formatted_value = self._format_value(value)
                     prompt = prompt.replace(placeholder, formatted_value)
         
         # Handle special function calls

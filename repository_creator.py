@@ -24,7 +24,7 @@ class RepositoryCreator:
                 repository_generator.create_readme(requirements)
                 repository_generator.create_gitignore(requirements.tech_stack)
             
-            await self.create_feature_files(requirements, repository_generator)
+            await self.create_feature_files(requirements, repository_generator, project_path)
             
             vc_system.initialize(repo_folder)
             vc_system.add_all()
@@ -46,7 +46,7 @@ class RepositoryCreator:
             logger.error(f"Error updating existing repository: {str(e)}")
             raise
 
-    async def create_feature_files(self, requirements: Requirements, repository_generator: Any):
+    async def create_feature_files(self, requirements: Requirements, repository_generator: Any, project_path: str):
         try:
             code_generator = CodeGenerator(self.api_key, requirements.tech_stack)
             
@@ -56,8 +56,7 @@ class RepositoryCreator:
             # Write generated code to files
             for file_path, code in code_results.items():
                 if code is not None:
-                    full_path = os.path.join(repository_generator.repo_folder, file_path)
-                    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                    full_path = os.path.join(project_path, file_path)
                     code_generator.write_code_to_file(full_path, code)
 
             logger.info(f"Generated and wrote code for {len(code_results)} files")

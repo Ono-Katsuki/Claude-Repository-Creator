@@ -2,19 +2,20 @@ import os
 import re
 from typing import Dict, Any, List, Tuple
 
+
 class PromptManager:
     def __init__(self, prompts_dir: str = 'prompts'):
         self.prompts_dir = prompts_dir
         self.prompts: Dict[str, Dict[str, str]] = {}
         self.required_variables: Dict[str, Dict[str, List[str]]] = {
-            'create_code_generation_prompt': {'default': ['language', 'feature_info', 'file_name', 'file_content']},
+            'create_code_generation_prompt': {'default': ['tech_stack', 'features', 'file_name', 'file_content']},
             'create_json_requirements_prompt': {'default': ['project_description']},
             'create_json_update_prompt': {'default': ['project_description', 'current_requirements', 'user_feedback']},
             'create_text_requirements_prompt': {'default': ['user_request']},
             'create_text_update_prompt': {'default': ['current_requirements', 'user_feedback']}
         }
         self._load_prompts()
-
+        
     def _load_prompts(self):
         for role in os.listdir(self.prompts_dir):
             role_path = os.path.join(self.prompts_dir, role)

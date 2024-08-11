@@ -55,8 +55,20 @@ class PromptManager:
     def format_methods(self, methods):
         formatted_methods = []
         for method in methods:
-            params = ", ".join(method.params)
-            formatted_method = f"{method.name}({params}) -> {method.return_type}: {method.description}"
+            if isinstance(method, dict):
+                # Handle dictionary representation
+                params = ", ".join(method.get('params', []))
+                name = method.get('name', '')
+                return_type = method.get('return_type', '')
+                description = method.get('description', '')
+            else:
+                # Handle object representation
+                params = ", ".join(method.params)
+                name = method.name
+                return_type = method.return_type
+                description = method.description
+            
+            formatted_method = f"{name}({params}) -> {return_type}: {description}"
             formatted_methods.append(formatted_method)
         return "\n".join(formatted_methods)
 

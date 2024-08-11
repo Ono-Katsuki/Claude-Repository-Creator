@@ -196,3 +196,13 @@ class CodeGenerator:
         except Exception as e:
             logger.error(f"Error during project code generation: {str(e)}")
             raise
+
+    def write_code_to_file(self, file_path: str, code: str):
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w') as f:
+                f.write(code)
+            logger.info(f"Successfully wrote code to file: {file_path}")
+        except Exception as e:
+            logger.error(f"Error writing code to file {file_path}: {str(e)}")
+            raise

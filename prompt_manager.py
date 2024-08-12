@@ -98,10 +98,14 @@ class PromptManager:
         
         # Add missing placeholders with XML tags
         if prompt_name in self.default_placeholders:
+            missing_placeholders = []
             for placeholder, description in self.default_placeholders[prompt_name].items():
                 if f"{{{placeholder}}}" not in prompt:
                     xml_placeholder = f'<{placeholder}>{{{placeholder}}}</{placeholder}>'
-                    prompt += f"\n{xml_placeholder} <!-- {description} -->"
+                    missing_placeholders.append(f"{xml_placeholder} <!-- {description} -->")
+            
+            if missing_placeholders:
+                prompt += "\n" + "\n".join(missing_placeholders)
         
         # Replace placeholders in the prompt
         for key, value in kwargs.items():

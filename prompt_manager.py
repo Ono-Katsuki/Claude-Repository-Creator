@@ -9,7 +9,7 @@ class PromptManager:
         self.default_placeholders: Dict[str, Dict[str, str]] = {
             'create_code_generation_prompt': {
                 'tech_stack': 'The programming tech stack to use',
-                'feature_info': 'Information about the features to implement',
+                'features': 'Information about the features to implement',
                 'file_name': 'The name of the file to generate',
                 'file_content.type': 'The type of the file content',
                 'file_content.description': 'Description of the file content',

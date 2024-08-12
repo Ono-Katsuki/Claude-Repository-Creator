@@ -62,12 +62,7 @@ class CodeGenerator:
                                            tech_stack=self.tech_stack,
                                            features=features_text,
                                            file_name=file.name,
-                                           file_content=file.content.model_dump() if file.content else None)
-        
-        # Print the final prompt for debugging
-        print("===== Final Prompt =====")
-        print(prompt)
-        print("===== End of Prompt =====")
+                                           file_content=file.content.model_dump() if file.content else None)        
         
         system_prompt = prompt_manager.get_prompt('create_code_generation_system_prompt', system_prompt_name, tech_stack=self.tech_stack)
 

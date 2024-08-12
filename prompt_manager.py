@@ -95,17 +95,28 @@ class PromptManager:
             raise ValueError(f"Prompt '{prompt_name}' not found for role '{role}'.")
         
         prompt = self.prompts[role][prompt_name]
+        print(f"Original prompt: {prompt}")  # デバッグ用プリント
         
         # Add missing placeholders with XML tags
         if prompt_name in self.default_placeholders:
+            print(f"Checking placeholders for {prompt_name}")  # デバッグ用プリント
             missing_placeholders = []
             for placeholder, description in self.default_placeholders[prompt_name].items():
+                print(f"Checking placeholder: {placeholder}")  # デバッグ用プリント
                 if f"{{{placeholder}}}" not in prompt:
+                    print(f"Placeholder {placeholder} is missing")  # デバッグ用プリント
                     xml_placeholder = f'<{placeholder}>{{{placeholder}}}</{placeholder}>'
                     missing_placeholders.append(f"{xml_placeholder} <!-- {description} -->")
             
             if missing_placeholders:
+                print(f"Adding missing placeholders: {missing_placeholders}")  # デバッグ用プリント
                 prompt += "\n" + "\n".join(missing_placeholders)
+            else:
+                print("No missing placeholders found")  # デバッグ用プリント
+        else:
+            print(f"No default placeholders defined for {prompt_name}")  # デバッグ用プリント
+        
+        print(f"Prompt after adding placeholders: {prompt}")  # デバッグ用プリント
         
         # Replace placeholders in the prompt
         for key, value in kwargs.items():
@@ -144,6 +155,7 @@ class PromptManager:
                 methods_str = self.format_methods(methods)
                 prompt = prompt.replace("{format_methods(file_content.methods)}", methods_str)
         
+        print(f"Final prompt: {prompt}")  # デバッグ用プリント
         return prompt.strip()
 
     def list_prompts(self) -> List[Tuple[str, str]]:
@@ -158,4 +170,11 @@ class PromptManager:
             raise ValueError(f"Prompt '{prompt_name}' not found for role '{role}'.")
         return self.prompts[role][prompt_name]
 
-prompt_manager = PromptManager()
+# テスト用のコード
+if __name__ == "__main__":
+    prompt_manager = PromptManager()
+    # テスト用の役割とプロンプト名を適切なものに置き換えてください
+    test_role = 'test_role'
+    test_prompt_name = 'create_code_generation_prompt'
+    result = prompt_manager.get_prompt(test_role, test_prompt_name)
+    print("Final result:", result)

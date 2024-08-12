@@ -268,7 +268,6 @@ class ClaudeRepoCreator:
         
         return requirements
 
-
     async def continue_from_stage(self):
         project_name = self.select_project()
         if not project_name:
@@ -338,6 +337,27 @@ class ClaudeRepoCreator:
         del text_requirements
         del json_requirements
         del requirements
+
+    async def create_project_from_requirements(self, project_name, requirements):
+            version_folder = f"v{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            self.current_project_folder = os.path.join(self.projects_folder, project_name, version_folder)
+            os.makedirs(self.current_project_folder, exist_ok=True)
+
+            progress_bar = tqdm(total=2, desc="Project Creation Progress", unit="step")
+
+            # Create repository
+            progress_bar.set_description("Creating repository")
+            await self.repository_creator.create_repository(requirements, False, self.current_project_folder, self.repo_generator, self.vc_system)
+            progress_bar.update(1)
+        
+            print(f"\nRepository for project: {project_name} has been created in folder: {self.current_project_folder}")
+        
+            # Create and save project summary with full code
+            self.create_project_summary(requirements)
+            print(f"\nProject summary with full code has been created in the markdown folder.")
+            progress_bar.update(1)
+            
+            progress_bar.close()
 
     async def run(self):
         print("Welcome to Claude Repo Creator!")

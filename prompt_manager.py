@@ -169,12 +169,5 @@ class PromptManager:
         if role not in self.prompts or prompt_name not in self.prompts[role]:
             raise ValueError(f"Prompt '{prompt_name}' not found for role '{role}'.")
         return self.prompts[role][prompt_name]
-
-# テスト用のコード
-if __name__ == "__main__":
-    prompt_manager = PromptManager()
-    # テスト用の役割とプロンプト名を適切なものに置き換えてください
-    test_role = 'test_role'
-    test_prompt_name = 'create_code_generation_prompt'
-    result = prompt_manager.get_prompt(test_role, test_prompt_name)
-    print("Final result:", result)
+        
+prompt_manager = PromptManager()

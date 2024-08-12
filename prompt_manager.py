@@ -6,12 +6,31 @@ class PromptManager:
     def __init__(self, prompts_dir: str = 'prompts'):
         self.prompts_dir = prompts_dir
         self.prompts: Dict[str, Dict[str, str]] = {}
-        self.required_variables: Dict[str, Dict[str, List[str]]] = {
-            'create_code_generation_prompt': {'default': ['tech_stack', 'features', 'file_name', 'file_content']},
-            'create_json_requirements_prompt': {'default': ['project_description']},
-            'create_json_update_prompt': {'default': ['project_description', 'current_requirements', 'user_feedback']},
-            'create_text_requirements_prompt': {'default': ['user_request']},
-            'create_text_update_prompt': {'default': ['current_requirements', 'user_feedback']}
+        self.default_placeholders: Dict[str, Dict[str, str]] = {
+            'create_code_generation_prompt': {
+                'language': 'The programming language to use',
+                'feature_info': 'Information about the features to implement',
+                'file_name': 'The name of the file to generate',
+                'file_content.type': 'The type of the file content',
+                'file_content.description': 'Description of the file content',
+                'file_content.properties': 'Properties of the file content',
+                'format_methods(file_content.methods)': 'Formatted methods of the file content'
+            },
+            'create_json_requirements_prompt': {
+                'project_description': 'Description of the project'
+            },
+            'create_json_update_prompt': {
+                'project_description': 'Description of the project',
+                'current_requirements': 'Current requirements of the project',
+                'user_feedback': 'Feedback from the user'
+            },
+            'create_text_requirements_prompt': {
+                'user_request': 'The request from the user'
+            },
+            'create_text_update_prompt': {
+                'current_requirements': 'Current requirements of the project',
+                'user_feedback': 'Feedback from the user'
+            }
         }
         self._load_prompts()
         
@@ -77,6 +96,13 @@ class PromptManager:
         
         prompt = self.prompts[role][prompt_name]
         
+        # Add missing placeholders with XML tags
+        if prompt_name in self.default_placeholders:
+            for placeholder, description in self.default_placeholders[prompt_name].items():
+                if f"{{{placeholder}}}" not in prompt:
+                    xml_placeholder = f'<{placeholder}>{{{placeholder}}}</{placeholder}>'
+                    prompt += f"\n{xml_placeholder} <!-- {description} -->"
+        
         # Replace placeholders in the prompt
         for key, value in kwargs.items():
             placeholder = f"{{{key}}}"
@@ -113,9 +139,6 @@ class PromptManager:
             if methods:
                 methods_str = self.format_methods(methods)
                 prompt = prompt.replace("{format_methods(file_content.methods)}", methods_str)
-        
-        # Remove any remaining unresolved placeholders
-        prompt = re.sub(r'\{[^}]+\}', '', prompt)
         
         return prompt.strip()
 

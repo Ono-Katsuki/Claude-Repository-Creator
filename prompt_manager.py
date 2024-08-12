@@ -88,13 +88,12 @@ class PromptManager:
             formatted_methods.append(formatted_method)
         return "\n".join(formatted_methods)
 
-    def get_prompt(self, role: str, prompt_name: str, **kwargs: Any) -> str:
-        if role not in self.prompts:
-            raise ValueError(f"Role '{role}' not found.")
-        if prompt_name not in self.prompts[role]:
-            raise ValueError(f"Prompt '{prompt_name}' not found for role '{role}'.")
-        
-        prompt = self.prompts[role][prompt_name]
+    def get_prompt(self, prompt_name: str, **kwargs: Any) -> str:
+        prompt = ""
+        for role, prompts in self.prompts.items():
+            if prompt_name in prompts:
+                prompt = prompts[prompt_name]
+                break
         
         # Add missing placeholders with XML tags
         if prompt_name in self.default_placeholders:

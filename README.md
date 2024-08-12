@@ -74,6 +74,32 @@ You can create and use custom prompts to tailor the project creation process to 
 
 This feature allows you to fine-tune the AI's output for different aspects of your project, such as requirements gathering, code generation, or documentation creation.
 
+### Project and Requirements Generation
+
+The tool generates various files and directories during the project creation process. Here's where you can find the generated content:
+
+1. **Project Files**: 
+   - Location: `claude_projects/<project_name>/v<timestamp>/`
+   - Description: This directory contains the actual project files, including the generated code, README, and other project-specific files.
+
+2. **Requirements Files**:
+   - Text Requirements:
+     - Location: `claude_projects/information_management/requirements/<project_name>/`
+     - Format: `requirements_v<version_number>.txt`
+   - JSON Requirements:
+     - Location: `claude_projects/information_management/cache/<project_name>/`
+     - Format: `requirements_v<version_number>.json`
+
+3. **Project Summaries**:
+   - Location: `claude_projects/information_management/markdown/<project_name>/`
+   - Format: `<project_name>_summary_v<version_number>.md`
+   - Description: These files contain comprehensive summaries of the project, including requirements, features, and generated code.
+
+4. **Temporary Projects**:
+   - During the initial stages of project creation, you might see temporary project folders named `temp_project_<timestamp>`. These are renamed to the actual project name once the project details are finalized.
+
+Each time you update or regenerate your project, a new version is created, allowing you to track changes and iterations over time.
+
 ## Contributing
 
 We welcome contributions to the Claude Repository Creator! Please feel free to submit issues, fork the repository and send pull requests!

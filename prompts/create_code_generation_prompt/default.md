@@ -10,7 +10,7 @@ File Information:
 Name: {file_name}
 Type: {file_content.type}
 Description: {file_content.description}
-Properties: {', '.join(file_content.properties)}
+Properties: {file_content.properties}
 Methods:
 {format_methods(file_content.methods)}
 

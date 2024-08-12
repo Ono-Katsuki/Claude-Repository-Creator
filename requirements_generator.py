@@ -68,6 +68,12 @@ class RequirementsGenerator:
 
     async def _execute_claude_request(self, prompt: str, extract_function: callable) -> str:
         max_retries = 3
+        
+        # Print the final prompt for debugging
+        print("===== Final Prompt =====")
+        print(prompt)
+        print("===== End of Prompt =====")
+        
         for attempt in range(max_retries):
             try:
                 message = await self.claude_client.messages.create(
@@ -103,6 +109,12 @@ class RequirementsGenerator:
 
     async def _execute_openai_request(self, prompt: str, response_model: Type[BaseModel]) -> BaseModel:
         max_retries = 3
+        
+        # Print the final prompt for debugging
+        print("===== Final Prompt =====")
+        print(prompt)
+        print("===== End of Prompt =====")
+        
         for attempt in range(max_retries):
             try:
                 completion = await self.openai_client.beta.chat.completions.parse(

@@ -88,7 +88,7 @@ class PromptManager:
             formatted_methods.append(formatted_method)
         return "\n".join(formatted_methods)
 
-    def get_prompt(self, role: str, prompt_name: str, **kwargs: Any) -> str:
+    def get_prompt(self, role: str, prompt_name: str, hierarchy_folder: str, **kwargs: Any) -> str:
         if role not in self.prompts:
             raise ValueError(f"Role '{role}' not found.")
         if prompt_name not in self.prompts[role]:
@@ -98,10 +98,10 @@ class PromptManager:
         print(f"Original prompt: {prompt}")  # デバッグ用プリント
         
         # Add missing placeholders with XML tags
-        if prompt_name in self.default_placeholders:
-            print(f"Checking placeholders for {prompt_name}")  # デバッグ用プリント
+        if hierarchy_folder in self.default_placeholders:
+            print(f"Checking placeholders for {hierarchy_folder}")  # デバッグ用プリント
             missing_placeholders = []
-            for placeholder, description in self.default_placeholders[prompt_name].items():
+            for placeholder, description in self.default_placeholders[hierarchy_folder].items():
                 print(f"Checking placeholder: {placeholder}")  # デバッグ用プリント
                 if f"{{{placeholder}}}" not in prompt:
                     print(f"Placeholder {placeholder} is missing")  # デバッグ用プリント
@@ -114,7 +114,7 @@ class PromptManager:
             else:
                 print("No missing placeholders found")  # デバッグ用プリント
         else:
-            print(f"No default placeholders defined for {prompt_name}")  # デバッグ用プリント
+            print(f"No default placeholders defined for {hierarchy_folder}")  # デバッグ用プリント
         
         print(f"Prompt after adding placeholders: {prompt}")  # デバッグ用プリント
         
@@ -169,5 +169,5 @@ class PromptManager:
         if role not in self.prompts or prompt_name not in self.prompts[role]:
             raise ValueError(f"Prompt '{prompt_name}' not found for role '{role}'.")
         return self.prompts[role][prompt_name]
-        
+
 prompt_manager = PromptManager()

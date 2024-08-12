@@ -1,4 +1,3 @@
-
 # Claude Repository Creator
 
 Claude Repository Creator is an advanced AI-powered tool designed to streamline the process of creating and managing software projects. By leveraging the capabilities of Claude AI, this application automates the generation of project requirements, code, and documentation, making it easier for developers to kickstart their projects.
@@ -18,6 +17,8 @@ Claude Repository Creator is an advanced AI-powered tool designed to streamline 
 6. **Multi-Language Support**: Generate code for multiple programming languages and frameworks, including Python, JavaScript, Java, React, and more.
 
 7. **Comprehensive Documentation**: Automatically generate README files and other necessary documentation for your project.
+
+8. **Custom Prompts**: Use markdown files in the prompts directory to create and use custom prompts for various stages of project creation.
 
 ## Getting Started
 
@@ -59,6 +60,19 @@ The Claude Repository Creator offers an interactive command-line interface that 
 3. **Update API Keys**: Easily update your Claude or OpenAI API keys within the application.
 
 4. **Iterative Development**: Refine your project by updating requirements or regenerating code based on new input.
+
+5. **Custom Prompts**: Create and use custom prompts for different stages of project creation.
+
+### Using Custom Prompts
+
+You can create and use custom prompts to tailor the project creation process to your specific needs:
+
+1. Navigate to the `prompts` directory in the project folder.
+2. Create a new markdown file (`.md`) in the appropriate subdirectory (e.g., `create_code_generation_prompt` for code generation prompts).
+3. Write your custom prompt in the markdown file, using placeholders for dynamic content (e.g., `{tech_stack}`, `{features}`).
+4. When running the tool, you'll be given the option to select from available prompts, including your custom ones.
+
+This feature allows you to fine-tune the AI's output for different aspects of your project, such as requirements gathering, code generation, or documentation creation.
 
 ## Contributing
 
